@@ -270,7 +270,7 @@ def reset_all():
 
 @app.api_route("/twilio/voice", methods=["GET", "POST"])
 async def twilio_voice(request: Request, contact_id: str | None = None, call_id: str | None = None):
-    """Start of Call: Asks for identity keyword before disclosing private reminder."""
+    """Start of Call: Asks who is speaking before disclosing any private reminder."""
     form = {}
     try:
         form = await request.form()
@@ -298,28 +298,36 @@ async def twilio_voice(request: Request, contact_id: str | None = None, call_id:
             db.create_contact(contact)
     if not contact:
         contacts = db.list_contacts()
-        contact = contacts[0] if contacts else {
-            "id": str(uuid.uuid4()),
-            "name": "sritej",
-            "phone": "+918147581686",
-            "secret_check": "2007",
-            "language": "en-IN",
-            "reminders": "Take your BP tablets after breakfast and drink some water",
-            "notes": "Enjoys watching sunrise",
-            "caregiver_contact": "+918147581686",
-        }
-        db.create_contact(contact)
+        if contacts:
+            contact = contacts[0]
+        else:
+            contact = {
+                "id": str(uuid.uuid4()),
+                "name": "sritej",
+                "phone": "+918147581686",
+                "secret_check": "2007",
+                "language": "en-IN",
+                "reminders": "Take your BP tablets after breakfast and drink some water",
+                "notes": "Enjoys watching sunrise",
+                "caregiver_contact": "+918147581686",
+            }
+            try:
+                db.create_contact(contact)
+            except Exception:
+                pass
 
     name = (c.get("sender_name") if c and c.get("sender_name") else contact.get("name")) or "sritej"
     lang = contact.get("language", "en-IN")
 
-    ask_identity = f"Hello! This is CareCall. May I confirm who is speaking? Please state your name."
+    # STRICT INITIAL PROMPT: First say hello, then wait for keyword
+    ask_identity = "Hello! May I know who is speaking? Please state your name."
     db.upsert_session(call_sid, contact["id"], state="verify", history=[{"role": "assistant", "text": ask_identity}])
     if call_id:
-        db.add_event(call_id, "TWILIO", "Call answered. Asking for identity keyword verification.")
+        db.add_event(call_id, "TWILIO", "Call answered. Asking for identity keyword.")
 
     base = config.get_public_url()
     action_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={call_sid}&stage=verify" + (f"&call_id={call_id}" if call_id else "")
+    noinput_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={call_sid}&stage=verify&noinput=1" + (f"&call_id={call_id}" if call_id else "")
 
     vr = VoiceResponse()
     g = Gather(
@@ -332,12 +340,13 @@ async def twilio_voice(request: Request, contact_id: str | None = None, call_id:
     )
     g.say(ask_identity, voice="alice", language=lang)
     vr.append(g)
-    vr.redirect(action_url, method="POST")
+    # If silence / no input, redirect to noinput handler
+    vr.redirect(noinput_url, method="POST")
     return xml(vr)
 
 
 @app.api_route("/twilio/respond", methods=["GET", "POST"])
-async def twilio_respond(request: Request, background: BackgroundTasks, contact_id: str | None = None, call_sid: str | None = None, call_id: str | None = None, stage: str | None = None):
+async def twilio_respond(request: Request, background: BackgroundTasks, contact_id: str | None = None, call_sid: str | None = None, call_id: str | None = None, stage: str | None = None, noinput: str | None = None):
     """Conversational turn handler: Verifies keyword, reads SpeechResult, updates SQLite transcript, calls Groq."""
     form = {}
     try:
@@ -346,6 +355,7 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
         pass
     speech = str(form.get("SpeechResult") or request.query_params.get("SpeechResult") or form.get("Digits") or "").strip()
     curr_stage = stage or request.query_params.get("stage") or "chat"
+    is_noinput = bool(noinput or request.query_params.get("noinput") or form.get("noinput"))
     
     c = db.get_call(call_id) if call_id else None
     if not contact_id and c:
@@ -368,17 +378,33 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
     name = contact.get("name", "sritej")
     base = config.get_public_url()
 
-    if speech:
+    # -------------------------------------------------------------------------
+    # STAGE 1: IDENTITY KEYWORD GATE
+    # -------------------------------------------------------------------------
+    if curr_stage == "verify":
+        from conversation import is_contact_verified_by_keyword
+
+        # Case A: Silence / Nothing spoken -> Mark as Alert & Cut Call
+        if is_noinput or not speech:
+            alert_reason = f"No response received during identity verification for {name}. Nobody answered or recipient remained silent."
+            db.create_alert(contact["id"], "high", [alert_reason])
+            if call_id:
+                db.add_event(call_id, "GUARDIAN", f"ALERT: Silent/No response received. Alerted caregiver.")
+            silence_reply = "No response received. For your security, ending call. Goodbye."
+            vr.say(silence_reply, voice="alice", language=lang)
+            vr.hangup()
+            return xml(vr)
+
+        # Log spoken text
         history.append({"role": "user", "text": speech})
         if call_id:
             db.add_event(call_id, "CONTACT", f'"{speech}"')
 
-    # STAGE 1: KEYWORD IDENTITY VERIFICATION
-    if curr_stage == "verify":
-        from conversation import is_contact_verified_by_keyword
+        # Check if keyword ('sritej') is present
         verified = is_contact_verified_by_keyword(speech, name, contact.get("secret_check"))
-        
-        if verified or not speech:
+
+        # Case B: Correct keyword ('sritej') spoken -> Proceed
+        if verified:
             reminder = (c.get("spoken_message") if c else "") or (c.get("message") if c else "") or contact.get("reminders") or "Daily check-in call"
             verified_reply = f"Identity verified! Hello {name}. I am calling with your reminder: {reminder}. How are you feeling today?"
             history.append({"role": "assistant", "text": verified_reply})
@@ -401,16 +427,28 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
             vr.append(g)
             vr.redirect(chat_url, method="POST")
             return xml(vr)
+
+        # Case C: Said something other than 'sritej' -> Mark as Alert & Cut Call
         else:
+            alert_reason = f"Unverified recipient answered call for {name}: '{speech}'. Keyword '{name}' missing. Reminders kept private."
+            db.create_alert(contact["id"], "high", [alert_reason])
+            if call_id:
+                db.add_event(call_id, "GUARDIAN", f"ALERT: Recipient said '{speech}' (keyword '{name}' missing). Cut call & alerted caregiver.")
+            
             reject_msg = "Sorry, identity keyword was not recognized. For privacy, reminders cannot be disclosed. Goodbye."
             vr.say(reject_msg, voice="alice", language=lang)
             vr.hangup()
-            db.create_alert(contact["id"], "high", [f"Unverified recipient answered call for {name}: '{speech}'. Privacy preserved."])
-            if call_id:
-                db.add_event(call_id, "GUARDIAN", f"REJECTED: Recipient said '{speech}'. Keyword '{name}' missing. Alerted caregiver.")
             return xml(vr)
 
+    # -------------------------------------------------------------------------
     # STAGE 2: ONGOING CONVERSATION & SAFETY CHECKS
+    # -------------------------------------------------------------------------
+    if speech:
+        history.append({"role": "user", "text": speech})
+        if call_id:
+            db.add_event(call_id, "CONTACT", f'"{speech}"')
+
+    # Emergency check
     if is_emergency(speech):
         emergency_reply = "Please call emergency services at 112 right now. I am alerting your caregiver immediately."
         vr.say(emergency_reply, voice="alice", language=lang)
@@ -421,6 +459,7 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
         background.add_task(evaluate_call_results, contact["id"], history)
         return xml(vr)
 
+    # Wrap up check
     if any(w in speech.lower() for w in ["goodbye", "bye", "that's all", "nothing else", "talk later", "all done", "all set"]):
         goodbye_reply = f"Thank you for checking in with me today, {name}. Please take care and have a wonderful day! Goodbye."
         vr.say(goodbye_reply, voice="alice", language=lang)
@@ -449,12 +488,14 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
         vr.append(g)
         return xml(vr)
 
+    # Generate warm conversational response using LLM (Groq / Claude)
     reply = generate_checkin_turn(contact, history, speech)
     history.append({"role": "assistant", "text": reply})
     db.upsert_session(sid, contact["id"], state="chat", history=history)
     if call_id:
         db.add_event(call_id, "CARECALL", reply)
 
+    # Conclude if enough turns
     if len(history) >= 6:
         conclude = f"{reply} Thank you for checking in with me today, {name}. Have a wonderful day. Goodbye!"
         vr.say(conclude, voice="alice", language=lang)
@@ -476,7 +517,6 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
     g.say(reply, voice="alice", language=lang)
     vr.append(g)
     return xml(vr)
-
 
 
 # ----------------------------------------------------------------------

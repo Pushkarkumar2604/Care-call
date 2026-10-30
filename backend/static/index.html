@@ -140,7 +140,10 @@ function switchTab(tab, evt) {
   document.getElementById('alertsView').style.display = tab === 'alerts' ? 'block' : 'none';
   document.getElementById('contactsView').style.display = tab === 'contacts' ? 'block' : 'none';
   document.getElementById('callsView').style.display = tab === 'calls' ? 'block' : 'none';
-  if (evt && evt.target) evt.target.classList.add('active');
+  if (evt && evt.target) {
+    const btn = evt.target.closest('.tab-btn') || evt.target;
+    btn.classList.add('active');
+  }
 }
 
 // Call Now Form handler

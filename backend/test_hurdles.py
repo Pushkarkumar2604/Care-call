@@ -43,14 +43,21 @@ r_unverified = client.post(f"/twilio/respond?contact_id={c['id']}&call_sid={sid_
 assert r_unverified.status_code == 200
 assert "not recognized" in r_unverified.text.lower() or "goodbye" in r_unverified.text.lower()
 assert "blood pressure" not in r_unverified.text, "Privacy leak: Spoke reminder to wrong person!"
-print("  [PASS] 1.2 Wrong person rejected: Privacy preserved, reminders kept strictly hidden")
+print("  [PASS] 1.2 Wrong person rejected: Alert created, reminders kept strictly hidden")
 
-# Test 1B: Actual person speaks designated keyword ('sritej')
+# Test 1B: Silence / No response received
+sid_silence = f"sid-silence-{uuid.uuid4().hex[:6]}"
+r_silent = client.post(f"/twilio/respond?contact_id={c['id']}&call_sid={sid_silence}&stage=verify&noinput=1")
+assert r_silent.status_code == 200
+assert "no response" in r_silent.text.lower() or "goodbye" in r_silent.text.lower()
+print("  [PASS] 1.3 Silence rejected: Alert created for unanswered/silent call")
+
+# Test 1C: Actual person speaks designated keyword ('sritej')
 r_verified = client.post(f"/twilio/respond?contact_id={c['id']}&call_sid={sid_contact}&stage=verify", data={'SpeechResult': 'Yes, speaking, this is Sritej'})
 assert r_verified.status_code == 200
 assert "identity verified" in r_verified.text.lower()
 assert "take blood pressure tablets" in r_verified.text.lower()
-print("  [PASS] 1.3 Keyword verified: Contact said 'Sritej' -> Agent confirmed identity & unlocked reminder")
+print("  [PASS] 1.4 Keyword verified: Contact said 'Sritej' -> Agent confirmed identity & unlocked reminder")
 
 # --- HURDLE 2: Conversational Follow-up & Emergency ---
 print("\n[HURDLE 2] Testing Conversational Follow-up & Emergency Safety...")

@@ -14,16 +14,17 @@ WEBHOOK_TOKEN = "e6c81c82-2652-4826-ad15-f4c7a722bcf7"
 
 
 def update_live_voice_twiml(name: str, message: str, lang: str = "en-IN"):
-    """Dynamically updates the live public Voice TwiML so Alice speaks the exact reminder text entered."""
+    """Dynamically updates the fallback Voice TwiML to ask for the identity keyword first."""
     url = f"https://webhook.site/token/{WEBHOOK_TOKEN}"
-    clean_name = name.strip() or "there"
-    clean_msg = message.strip() or "Daily check-in call"
+    base = config.get_public_url()
+    action_url = f"{base}/twilio/respond?stage=verify"
 
     xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice" language="{lang}">Hello {clean_name}, this is your CareCall check-in! I am calling with your reminder: {clean_msg}. How are you feeling today?</Say>
-  <Pause length="2"/>
-  <Say voice="alice" language="{lang}">Thank you for checking in with CareCall. Please take care and have a wonderful day! Goodbye.</Say>
+  <Gather input="speech" action="{action_url}" method="POST" speechTimeout="auto" language="{lang}" timeout="6">
+    <Say voice="alice" language="{lang}">Hello! May I know who is speaking? Please state your name.</Say>
+  </Gather>
+  <Redirect method="POST">{action_url}&amp;noinput=1</Redirect>
 </Response>"""
 
     payload = json.dumps({
