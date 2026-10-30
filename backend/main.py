@@ -1,8 +1,9 @@
 """CareCall backend: FastAPI app.
 
 Run:  uvicorn main:app --port 8000
-  /api/...     used by the v0 dashboard (or the fallback page at /)
+  /api/...     used by the dashboard
   /twilio/...  webhooks Twilio calls during a phone call (through ngrok)
+  /            the dashboard page (served from the ../frontend folder)
 """
 import re
 import uuid
@@ -14,6 +15,7 @@ from urllib.parse import urlencode
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import config
@@ -59,11 +61,6 @@ class CallIn(BaseModel):
     scheduled_at: str            # ISO time, e.g. 2026-11-01T10:30:00.000Z
     note: str = ""               # extra facts the AI may use to answer questions
     sender_name: str = ""
-
-
-@app.get("/")
-def index():
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
 @app.get("/api/health")
@@ -279,3 +276,14 @@ def run_reporter(call_id: str):
     summary = reporter_agent(c, db.list_events([call_id]))
     db.update_call(call_id, summary=summary)
     db.add_event(call_id, "REPORTER", summary)
+
+
+# ==========================================================================
+# Dashboard page (MUST stay at the very bottom of this file, or it will
+# block the /api and /twilio doors above)
+# ==========================================================================
+app.mount(
+    "/",
+    StaticFiles(directory=Path(__file__).parent.parent / "frontend", html=True),
+    name="frontend",
+)
