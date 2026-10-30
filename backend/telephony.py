@@ -61,11 +61,12 @@ def place_call(call: dict, attempt: int) -> str:
     if base and base.startswith("https://") and "supabase" not in base:
         try:
             req = urllib.request.Request(f"{base}/twilio/voice?{qs}", headers={"User-Agent": "CareCall/1.0"})
-            with urllib.request.urlopen(req, timeout=1.5) as probe:
+            with urllib.request.urlopen(req, timeout=3.5) as probe:
                 if probe.status == 200:
                     voice_url = f"{base}/twilio/voice?{qs}"
-        except Exception:
-            pass
+                    print(f"[telephony] Using live conversational endpoint: {voice_url}")
+        except Exception as e:
+            print("[telephony] Tunnel probe fallback to cloud endpoint:", e)
 
     client = Client(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
     # Place the call with guaranteed 200 OK voice URL
