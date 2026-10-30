@@ -1,158 +1,305 @@
 <!doctype html>
-<!-- FALLBACK UI: served by FastAPI at http://localhost:8000/ . Use it if the v0 page is not ready by hour 6. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CareCall</title>
+<title>CareCall - AI Check-in Service</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#667085; --line:#e4e7ec; --brand:#0f766e; }
+  :root { --bg:#f8fafc; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#0f766e; --brand-light:#ccfbf1; --btn-call:#10b981; }
   * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, Segoe UI, Arial, sans-serif; background:var(--bg); color:var(--ink); }
-  header { background:var(--brand); color:#fff; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  header h1 { margin:0; font-size:20px; }
-  header .sub { opacity:.85; font-size:13px; }
-  header .right { margin-left:auto; display:flex; gap:8px; align-items:center; font-size:12px; }
-  main { display:grid; grid-template-columns: 340px 1fr; gap:16px; padding:16px; max-width:1300px; margin:auto; }
-  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
-  label { display:block; font-size:13px; font-weight:600; margin:10px 0 4px; }
-  input, textarea, select { width:100%; padding:9px; border:1px solid var(--line); border-radius:7px; font:inherit; }
-  textarea { min-height:70px; }
-  button { cursor:pointer; border:0; border-radius:7px; padding:10px 14px; font-weight:600; font:inherit; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--brand); color:#fff; padding:16px 24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  header h1 { margin:0; font-size:22px; font-weight:800; letter-spacing:-0.5px; }
+  header .sub { opacity:.9; font-size:13px; }
+  header .right { margin-left:auto; display:flex; gap:12px; align-items:center; font-size:13px; }
+  .grid { display:grid; grid-template-columns: 380px 1fr; gap:20px; padding:20px; max-width:1400px; margin:auto; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+  h2 { margin:0 0 12px; font-size:16px; font-weight:700; color:var(--ink); display:flex; align-items:center; justify-content:space-between; }
+  label { display:block; font-size:12px; font-weight:700; text-transform:uppercase; color:var(--muted); margin:10px 0 4px; }
+  input, textarea, select { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:14px; background:#fff; }
+  textarea { min-height:60px; resize:vertical; }
+  button { cursor:pointer; border:0; border-radius:8px; padding:10px 16px; font-weight:600; font:inherit; transition:opacity 0.15s; }
+  button:hover { opacity:0.9; }
   .primary { background:var(--brand); color:#fff; width:100%; margin-top:14px; }
-  .ghost { background:#fff; color:var(--ink); border:1px solid var(--line); padding:6px 10px; }
-  .danger { background:#fee4e2; color:#b42318; padding:6px 10px; }
-  .msg { font-size:13px; margin-top:8px; }
-  .call { border:1px solid var(--line); border-radius:10px; margin-bottom:12px; background:#fff; }
-  .call.attn { border:2px solid #d92d20; }
-  .top { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 14px; }
-  .badge { font-size:12px; font-weight:700; padding:3px 9px; border-radius:99px; text-transform:uppercase; }
-  .s-scheduled{background:#eef4ff;color:#3538cd} .s-calling{background:#fef0c7;color:#b54708}
-  .s-confirmed{background:#dcfae6;color:#067647} .s-rescheduled{background:#e0f2fe;color:#026aa2}
-  .s-retrying{background:#fdead7;color:#c4320a} .s-needs_attention{background:#d92d20;color:#fff}
-  .s-unreachable{background:#e4e7ec;color:#344054}
-  .p-critical{background:#fee4e2;color:#b42318} .p-high{background:#fef0c7;color:#b54708} .p-normal{background:#f2f4f7;color:#475467}
-  .summary { padding:0 14px 10px; font-size:14px; }
-  .summary.attn { color:#b42318; font-weight:700; }
-  .meta { color:var(--muted); font-size:12px; }
-  details { border-top:1px solid var(--line); padding:8px 14px; }
-  summary { cursor:pointer; font-size:13px; color:var(--muted); }
-  .line { display:flex; gap:8px; font-size:13px; padding:3px 0; }
-  .tag { font-size:10px; font-weight:800; min-width:84px; text-align:center; padding:2px 6px; border-radius:5px; height:fit-content; }
-  .a-PLANNER{background:#ede9fe;color:#5b21b6} .a-LISTENER{background:#dbeafe;color:#1e40af}
-  .a-GUARDIAN{background:#fef3c7;color:#92400e} .a-REPORTER{background:#dcfce7;color:#166534}
-  .a-SCHEDULER{background:#f1f5f9;color:#334155} .a-TWILIO{background:#fce7f3;color:#9d174d}
-  .a-PERSON{background:#e0f2fe;color:#075985} .a-CARECALL{background:#ccfbf1;color:#115e59} .a-SYSTEM{background:#fee2e2;color:#991b1b}
-  .time { color:var(--muted); font-size:11px; min-width:58px; }
+  .call-btn { background:#059669; color:#fff; width:100%; margin-top:12px; font-size:15px; padding:12px; font-weight:700; border-radius:8px; }
+  .call-sm-btn { background:#059669; color:#fff; font-size:12px; padding:6px 12px; font-weight:700; border-radius:6px; }
+  .ghost { background:#f1f5f9; color:#334155; padding:6px 12px; font-size:13px; border-radius:6px; }
+  .danger { background:#fee2e2; color:#b91c1c; font-size:12px; padding:6px 12px; }
+  .badge { font-size:11px; font-weight:800; padding:3px 8px; border-radius:99px; text-transform:uppercase; display:inline-block; }
+  .sev-high { background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; }
+  .sev-medium { background:#fef3c7; color:#b45309; border:1px solid #fde68a; }
+  .sev-low { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .s-calling { background:#fef3c7; color:#b45309; }
+  .s-confirmed { background:#dcfce7; color:#166534; }
+  .s-needs_attention { background:#fee2e2; color:#b91c1c; }
+  .alert-card { border-left:4px solid #b91c1c; background:#fff; padding:12px 16px; border-radius:8px; margin-bottom:10px; border:1px solid var(--line); border-left-width:4px; }
+  .alert-card.high { border-left-color:#dc2626; }
+  .alert-card.medium { border-left-color:#f59e0b; }
+  .alert-card.low { border-left-color:#3b82f6; }
+  .contact-item { padding:14px; border:1px solid var(--line); border-radius:10px; margin-bottom:12px; background:#fff; }
+  .contact-top { display:flex; justify-content:space-between; align-items:center; }
+  .meta { color:var(--muted); font-size:13px; }
+  .tag { font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px; }
+  .section-tab { display:flex; gap:8px; border-bottom:1px solid var(--line); margin-bottom:16px; padding-bottom:8px; }
+  .tab-btn { background:none; color:var(--muted); border:0; padding:8px 14px; font-weight:700; font-size:14px; border-radius:6px; }
+  .tab-btn.active { background:var(--brand-light); color:var(--brand); }
+  .call-banner { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; padding:12px; border-radius:8px; margin-top:10px; font-size:13px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>CareCall</h1><span class="sub">Multi-agent reminder calls · Team Carpe Diem (Ah-11)</span>
-  <div class="right"><span id="health">checking…</span><button class="danger" onclick="resetAll()">Reset demo</button></div>
+  <div>
+    <h1>CareCall</h1>
+    <div class="sub">General-Purpose AI Check-in Call Service · Team Carpe Diem</div>
+  </div>
+  <div class="right">
+    <span id="health">Connecting...</span>
+    <button class="danger" onclick="resetAll()">Reset Demo</button>
+  </div>
 </header>
-<main>
-  <section class="card">
-    <h2 style="margin:0 0 4px;font-size:17px">Schedule a call</h2>
-    <form id="f">
-      <label>Phone number (international)</label>
-      <input name="phone" placeholder="+919876543210" required>
-      <label>Message to speak</label>
-      <textarea name="message" placeholder="Please take your blood pressure tablet after breakfast." required></textarea>
-      <label>Note for questions (optional)</label>
-      <textarea name="note" placeholder="Blue tablet, the box is on the kitchen shelf. Take it with water."></textarea>
-      <label>Your name (optional)</label>
-      <input name="sender_name" placeholder="Ravi">
-      <label>Date and time</label>
-      <input name="when" type="datetime-local" required>
-      <label>Language</label>
-      <select name="language"><option value="en">English</option><option value="hi">Hindi</option><option value="kn">Kannada</option></select>
-      <button class="primary" type="submit">Schedule call</button>
-      <div class="msg" id="formMsg"></div>
-    </form>
-  </section>
-  <section>
-    <div id="list"><div class="card meta">No calls yet.</div></div>
-  </section>
-</main>
+
+<div class="grid">
+  <!-- Left Column: Place Call & Add Contact -->
+  <div>
+    <!-- Call Now Form -->
+    <div class="card" style="border:2px solid #059669;">
+      <h2>📞 Place Check-in Call</h2>
+      <p class="meta" style="margin-top:0;">Phone rings immediately. AI speaks the reminder and listens to the reply.</p>
+      <form id="callNowForm">
+        <label>Phone Number to Call</label>
+        <input id="callPhone" name="phone" placeholder="+918147581686" value="+918147581686" required>
+        <label>Contact Name</label>
+        <input id="callName" name="name" placeholder="sritej" value="sritej" required>
+        <label>Spoken Reminder Message</label>
+        <textarea id="callMessage" name="message" placeholder="Take your BP tablets after breakfast and drink some water">Take your BP tablets after breakfast and drink some water</textarea>
+        <button class="call-btn" type="submit">📞 Call Phone Now</button>
+        <div id="callStatusBanner" style="display:none;" class="call-banner"></div>
+      </form>
+    </div>
+
+    <!-- Add Contact Form -->
+    <div class="card">
+      <h2>Add / Save Contact</h2>
+      <form id="contactForm">
+        <label>Full Name</label>
+        <input name="name" placeholder="sritej" value="sritej" required>
+        <label>Phone Number (International)</label>
+        <input name="phone" placeholder="+918147581686" value="+918147581686" required>
+        <label>Daily Reminders (Tasks / Medicine)</label>
+        <textarea name="reminders" placeholder="Take BP tablets after breakfast">Take BP tablets after breakfast</textarea>
+        <label>Caregiver Notes</label>
+        <textarea name="notes" placeholder="Enjoys watching sunrise">Enjoys watching sunrise</textarea>
+        <button class="primary" type="submit">Save Contact</button>
+        <div id="contactMsg" class="meta" style="margin-top:8px"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right Column: Caregiver Dashboard (Alerts, Contacts, Results) -->
+  <div>
+    <div class="section-tab">
+      <button class="tab-btn active" onclick="switchTab('contacts', event)">Contacts Directory</button>
+      <button class="tab-btn" onclick="switchTab('calls', event)">Active Calls & Transcripts</button>
+      <button class="tab-btn" onclick="switchTab('alerts', event)">Caregiver Alerts <span id="alertsCount" class="badge sev-high">0</span></button>
+    </div>
+
+    <!-- Contacts View -->
+    <div id="contactsView">
+      <div class="card">
+        <h2>Managed Contacts</h2>
+        <div id="contactsList" class="meta">Loading contacts...</div>
+      </div>
+    </div>
+
+    <!-- Active Calls & Transcripts View -->
+    <div id="callsView" style="display:none;">
+      <div class="card">
+        <h2>Live Call Transcripts & History</h2>
+        <div id="callsList" class="meta">No active calls.</div>
+      </div>
+    </div>
+
+    <!-- Alerts View -->
+    <div id="alertsView" style="display:none;">
+      <div class="card">
+        <h2>Active Caregiver Alerts</h2>
+        <div id="alertsList" class="meta">No alerts triggered. Everything normal.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-const API = "";  // same origin as FastAPI
-const H = { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" };
-const STATUS_LABEL = { needs_attention: "needs attention" };
+const API = "";
+const H = { "Content-Type": "application/json" };
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
-const t = iso => iso ? new Date(iso).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit", second:"2-digit" }) : "";
 
-function defaultWhen() {
-  const d = new Date(Date.now() + 60_000); d.setSeconds(0, 0);
-  const pad = n => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function switchTab(tab, evt) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('alertsView').style.display = tab === 'alerts' ? 'block' : 'none';
+  document.getElementById('contactsView').style.display = tab === 'contacts' ? 'block' : 'none';
+  document.getElementById('callsView').style.display = tab === 'calls' ? 'block' : 'none';
+  if (evt && evt.target) evt.target.classList.add('active');
 }
-document.querySelector("[name=when]").value = defaultWhen();
 
-document.getElementById("f").addEventListener("submit", async e => {
+// Call Now Form handler
+document.getElementById('callNowForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const fd = new FormData(e.target), msg = document.getElementById("formMsg");
-  msg.textContent = "Planner agent is thinking…";
+  const banner = document.getElementById('callStatusBanner');
+  banner.style.display = 'block';
+  banner.innerHTML = "<b>Connecting to Twilio...</b> Dialing phone now...";
+
+  const phone = document.getElementById('callPhone').value.trim();
+  const name = document.getElementById('callName').value.trim();
+  const message = document.getElementById('callMessage').value.trim();
+
   try {
-    const r = await fetch(API + "/api/calls", { method: "POST", headers: H, body: JSON.stringify({
-      phone: fd.get("phone"), message: fd.get("message"), note: fd.get("note"),
-      sender_name: fd.get("sender_name"), language: fd.get("language"),
-      scheduled_at: new Date(fd.get("when")).toISOString() }) });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.detail || r.status);
-    msg.textContent = `Scheduled. Priority: ${data.priority}.`;
-    document.querySelector("[name=when]").value = defaultWhen();
-    load();
-  } catch (err) { msg.textContent = "Error: " + err.message; }
+    const res = await fetch(API + "/api/calls/immediate", {
+      method: "POST",
+      headers: H,
+      body: JSON.stringify({ phone, name, message })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Call failed");
+    banner.innerHTML = `<b>📞 Phone is Ringing!</b> Call SID: <code>${data.twilio_sid}</code>. Answer your phone!`;
+    loadAll();
+  } catch (err) {
+    banner.style.background = "#fee2e2";
+    banner.style.color = "#b91c1c";
+    banner.innerHTML = `<b>Error:</b> ${esc(err.message)}`;
+  }
+});
+
+// Quick call from contact list
+async function callContact(phone, message, name) {
+  document.getElementById('callPhone').value = phone;
+  document.getElementById('callName').value = name;
+  document.getElementById('callMessage').value = message || "Daily check-in call";
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.getElementById('callNowForm').dispatchEvent(new Event('submit'));
+}
+
+// Contact Form handler
+document.getElementById('contactForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const msg = document.getElementById('contactMsg');
+  msg.textContent = "Saving...";
+  try {
+    const res = await fetch(API + "/api/contacts", {
+      method: "POST", headers: H,
+      body: JSON.stringify({
+        name: fd.get("name"),
+        phone: fd.get("phone"),
+        secret_check: "1985",
+        reminders: fd.get("reminders"),
+        notes: fd.get("notes"),
+        caregiver_contact: fd.get("phone")
+      })
+    });
+    if (!res.ok) throw new Error("Failed to save");
+    msg.textContent = "Contact saved successfully!";
+    loadAll();
+  } catch (err) {
+    msg.textContent = "Error: " + err.message;
+  }
 });
 
 async function resetAll() {
-  if (!confirm("Delete all calls?")) return;
-  await fetch(API + "/api/calls", { method: "DELETE", headers: H }); load();
-}
-async function callNow(id) { await fetch(API + `/api/calls/${id}/call-now`, { method: "POST", headers: H }); load(); }
-
-const openIds = new Set();
-function render(calls) {
-  const list = document.getElementById("list");
-  list.querySelectorAll("details[open]").forEach(d => openIds.add(d.dataset.id));
-  list.querySelectorAll("details:not([open])").forEach(d => openIds.delete(d.dataset.id));
-  if (!calls.length) { list.innerHTML = '<div class="card meta">No calls yet.</div>'; return; }
-  list.innerHTML = calls.map(c => {
-    const attn = c.status === "needs_attention";
-    return `<div class="call ${attn ? "attn" : ""}">
-      <div class="top">
-        <span class="badge s-${c.status}">${esc(STATUS_LABEL[c.status] || c.status)}</span>
-        <span class="badge p-${c.priority}">${esc(c.priority)}</span>
-        <b>${esc(c.phone)}</b>
-        <span class="meta">${esc(c.language.toUpperCase())} · ${new Date(c.scheduled_at).toLocaleString()} · attempts ${c.attempts}/${c.max_attempts}+</span>
-        <button class="ghost" style="margin-left:auto" onclick="callNow('${c.id}')">Call now</button>
-      </div>
-      <div class="summary meta">“${esc(c.message)}”</div>
-      ${c.summary ? `<div class="summary ${attn ? "attn" : ""}">Reporter: ${esc(c.summary)}</div>` : ""}
-      <details data-id="${c.id}" ${openIds.has(c.id) ? "open" : ""}>
-        <summary>Transcript (${c.events.length} lines)</summary>
-        ${c.events.map(e => `<div class="line"><span class="time">${t(e.created_at)}</span>
-          <span class="tag a-${e.agent}">${esc(e.agent)}</span><span>${esc(e.text)}</span></div>`).join("")}
-      </details></div>`;
-  }).join("");
+  if (!confirm("Reset all calls and alerts for demo?")) return;
+  await fetch(API + "/api/calls", { method: "DELETE", headers: H });
+  loadAll();
 }
 
-async function load() {
+async function loadAll() {
+  // Load Contacts
   try {
-    const r = await fetch(API + "/api/calls", { headers: H });
-    render(await r.json());
-  } catch (e) { /* backend restarting; try again next tick */ }
+    const contacts = await (await fetch(API + "/api/contacts")).json();
+    const cList = document.getElementById('contactsList');
+    if (!contacts.length) {
+      cList.innerHTML = "No contacts saved yet.";
+    } else {
+      cList.innerHTML = contacts.map(c => `
+        <div class="contact-item">
+          <div class="contact-top">
+            <div><b>${esc(c.name)}</b> (${esc(c.phone)})</div>
+            <button class="call-sm-btn" onclick="callContact('${esc(c.phone)}', '${esc(c.reminders || '')}', '${esc(c.name)}')">📞 Call Now</button>
+          </div>
+          <div class="meta" style="margin-top:6px;"><b>Reminder:</b> ${esc(c.reminders || "None")}</div>
+          <div class="meta"><b>Notes:</b> ${esc(c.notes || "None")}</div>
+        </div>
+      `).join("");
+    }
+  } catch {}
+
+  // Load Alerts
+  try {
+    const alerts = await (await fetch(API + "/api/alerts")).json();
+    document.getElementById('alertsCount').textContent = alerts.length;
+    const aList = document.getElementById('alertsList');
+    if (!alerts.length) {
+      aList.innerHTML = "No alerts triggered. All check-ins healthy.";
+    } else {
+      aList.innerHTML = alerts.map(a => `
+        <div class="alert-card ${a.severity}">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="badge sev-${a.severity}">${a.severity.toUpperCase()} ALERT</span>
+            <span class="meta">${new Date(a.created_at).toLocaleTimeString()}</span>
+          </div>
+          <div style="font-weight:700;margin-top:6px;">${a.reasons.join(" · ")}</div>
+        </div>
+      `).join("");
+    }
+  } catch {}
+
+  // Load Calls & Transcripts
+  try {
+    const calls = await (await fetch(API + "/api/calls")).json();
+    const callList = document.getElementById('callsList');
+    if (!calls.length) {
+      callList.innerHTML = "No calls yet.";
+    } else {
+      callList.innerHTML = calls.map(c => `
+        <div class="contact-item">
+          <div class="contact-top">
+            <span class="badge s-${c.status}">${c.status.toUpperCase()}</span>
+            <b>${esc(c.sender_name || c.phone)} (${esc(c.phone)})</b>
+            <span class="meta">${new Date(c.created_at).toLocaleTimeString()}</span>
+          </div>
+          <div class="meta" style="margin-top:4px;">“${esc(c.message)}”</div>
+          ${c.twilio_sid ? `<div class="meta" style="font-size:11px;color:#059669;">Twilio SID: ${esc(c.twilio_sid)}</div>` : ""}
+          ${c.events && c.events.length ? `
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);">
+              <div class="meta" style="font-weight:700;margin-bottom:4px;">Live Events (${c.events.length}):</div>
+              ${c.events.map(e => `
+                <div style="font-size:12px;padding:2px 0;">
+                  <span class="tag" style="background:#f1f5f9;font-weight:700;">${esc(e.agent)}</span>
+                  <span>${esc(e.text)}</span>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+        </div>
+      `).join("");
+    }
+  } catch {}
 }
+
 async function health() {
   try {
-    const h = await (await fetch(API + "/api/health", { headers: H })).json();
-    document.getElementById("health").textContent =
-      `${h.dry_run ? "DRY RUN" : "LIVE CALLS"} · db ${h.db} · llm ${h.llm}${h.demo_mode ? " · demo mode" : ""}`;
-  } catch { document.getElementById("health").textContent = "backend offline"; }
+    const h = await (await fetch(API + "/api/health")).json();
+    document.getElementById('health').textContent =
+      `${h.dry_run ? "DRY RUN" : "LIVE"} · DB ${h.db} · LLM ${h.llm}`;
+  } catch {
+    document.getElementById('health').textContent = "Server Offline";
+  }
 }
-load(); health(); setInterval(load, 2000); setInterval(health, 10000);
+
+loadAll();
+health();
+setInterval(loadAll, 3000);
+setInterval(health, 10000);
 </script>
 </body>
 </html>

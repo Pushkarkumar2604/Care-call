@@ -2,10 +2,13 @@
 import json
 import os
 import urllib.request
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Always load .env from the backend directory
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
 def _bool(name: str, default: str = "false") -> bool:
@@ -25,12 +28,12 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
-LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "2.5"))
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "3.5"))
 
-DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").strip().lower()
+DB_BACKEND = os.getenv("DB_BACKEND", "supabase").strip().lower()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
-SQLITE_PATH = os.getenv("SQLITE_PATH", "carecall.db")
+SQLITE_PATH = str(Path(__file__).resolve().parent / "carecall.db")
 
 ENABLED_LANGUAGES = [x.strip() for x in os.getenv("ENABLED_LANGUAGES", "en,hi,kn").split(",") if x.strip()]
 VOICES = {
@@ -43,11 +46,15 @@ CORS_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if 
 
 
 def get_public_url() -> str:
-    """Public https address Twilio uses to reach us.
+    """Public https address Twilio uses to reach us."""
+    # 1. Check if tunnel.txt has an active tunnel
+    tunnel_file = Path(__file__).resolve().parent / "tunnel.txt"
+    if tunnel_file.exists():
+        t = tunnel_file.read_text().strip()
+        if t.startswith("https://"):
+            return t.rstrip("/")
 
-    1) If ngrok runs on this laptop, ask its local API (always the current address).
-    2) Otherwise use PUBLIC_URL from .env.
-    """
+    # 2. Check if ngrok runs on this laptop
     try:
         with urllib.request.urlopen("http://127.0.0.1:4040/api/tunnels", timeout=0.5) as r:
             data = json.load(r)
@@ -56,4 +63,8 @@ def get_public_url() -> str:
                 return t["public_url"].rstrip("/")
     except Exception:
         pass
+
+    # 3. PUBLIC_URL from .env
+    if PUBLIC_URL and PUBLIC_URL.startswith("https://") and "xxxx" not in PUBLIC_URL:
+        return PUBLIC_URL
     return PUBLIC_URL

@@ -1,0 +1,10 @@
+project_id = "ujgqwmhartcreiyuylhb"
+
+[functions.twilio-voice]
+verify_jwt = false
+
+[functions.twilio-respond]
+verify_jwt = false
+
+[functions.twilio-status]
+verify_jwt = false

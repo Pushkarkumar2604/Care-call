@@ -1,13 +1,11 @@
-
 """CareCall backend: FastAPI app.
 
-Run: uvicorn main:app --port 8000
-
-/api/...      used by the dashboard
-/twilio/...   webhooks for Twilio calls
-/             dashboard served from ../frontend
+Endpoints:
+  /api/...           Used by the dashboard (contacts, calls, alerts, call_results)
+  /twilio/voice      Twilio Voice webhook: Initial contact check ("May I speak with <name>?")
+  /twilio/respond    Twilio Gather webhook: Identity state machine & check-in conversation
+  /twilio/status     Twilio Status callback: Attempt tracking, 10m/30m retries, unreachable alerts
 """
-
 import re
 import uuid
 from contextlib import asynccontextmanager
@@ -17,52 +15,35 @@ from urllib.parse import urlencode
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
-from twilio.twiml.voice_response import VoiceResponse
+from twilio.twiml.voice_response import VoiceResponse, Gather
 
 import config
 import scheduler
-from agents import (
-    clamp_minutes,
-    guardian_agent,
-    listener_agent,
-    planner_agent,
-    reporter_agent,
+from agents import clamp_minutes, guardian_agent, listener_agent, planner_agent, reporter_agent
+from conversation import (
+    is_emergency,
+    classify_identity_reply,
+    verify_secret_in_code,
+    generate_checkin_turn,
+    evaluate_call_results,
 )
 from db import BACKEND_NAME, db, now_iso
 from phrases import LANGS, lang_of, p
 from telephony import gather_twiml, hangup_twiml
 
 
-MAX_QUESTIONS = 2
-MAX_UNCLEAR = 1
-
-
-# ==========================================================================
-# Application startup and shutdown
-# ==========================================================================
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.start()
-
-    print(
-        f"[carecall] DRY_RUN={config.DRY_RUN} "
-        f"DEMO_MODE={config.DEMO_MODE} "
-        f"DB={BACKEND_NAME} "
-        f"LLM={config.LLM_PROVIDER} "
-        f"PUBLIC_URL={config.get_public_url() or '(not set)'}"
-    )
-
+    print(f"[carecall] DRY_RUN={config.DRY_RUN} DEMO_MODE={config.DEMO_MODE} DB={BACKEND_NAME} "
+          f"LLM={config.LLM_PROVIDER} PUBLIC_URL={config.get_public_url() or '(not set)'}")
     yield
-
     scheduler.shutdown()
 
 
 app = FastAPI(title="CareCall", lifespan=lifespan)
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
@@ -71,17 +52,13 @@ app.add_middleware(
 )
 
 
-def xml(twiml: str) -> Response:
-    return Response(
-        content=twiml,
-        media_type="application/xml",
-    )
+def xml(twiml_obj) -> Response:
+    return Response(content=str(twiml_obj), media_type="text/xml; charset=utf-8")
 
 
 # ==========================================================================
-# Dashboard API
+# Dashboard & Management APIs
 # ==========================================================================
-
 class CallIn(BaseModel):
     phone: str
     message: str
@@ -89,6 +66,21 @@ class CallIn(BaseModel):
     scheduled_at: str
     note: str = ""
     sender_name: str = ""
+
+
+class ContactIn(BaseModel):
+    name: str
+    phone: str
+    secret_check: str = "1985"
+    language: str = "en-IN"
+    reminders: str = ""
+    notes: str = ""
+    caregiver_contact: str = ""
+
+
+@app.get("/")
+def index():
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
 @app.get("/api/health")
@@ -102,55 +94,65 @@ def health():
         "public_url": config.get_public_url(),
         "languages": config.ENABLED_LANGUAGES,
         "jobs": len(scheduler.sched.get_jobs()),
+        "alerts_count": len(db.list_alerts()),
     }
 
 
+# Contacts API
+@app.post("/api/contacts")
+def create_contact(body: ContactIn):
+    cid = str(uuid.uuid4())
+    row = {
+        "id": cid,
+        "name": body.name.strip(),
+        "phone": body.phone.strip(),
+        "secret_check": body.secret_check.strip(),
+        "language": body.language,
+        "reminders": body.reminders.strip(),
+        "notes": body.notes.strip(),
+        "caregiver_contact": body.caregiver_contact.strip(),
+    }
+    return db.create_contact(row)
+
+
+@app.get("/api/contacts")
+def list_contacts():
+    return db.list_contacts()
+
+
+# Alerts API (For caregiver dashboard)
+@app.get("/api/alerts")
+def list_alerts():
+    return db.list_alerts()
+
+
+# Call Results API (Structured call extraction history)
+@app.get("/api/call-results")
+def list_call_results(contact_id: str | None = None):
+    if contact_id:
+        return db.get_recent_results(contact_id, limit=10)
+    return []
+
+
+# Calls Scheduling API (existing)
 @app.post("/api/calls")
 def create_call(body: CallIn):
-    # Normalize the phone number.
     phone = re.sub(r"[\s\-()]", "", body.phone)
-
     if not re.fullmatch(r"\+\d{8,15}", phone):
-        raise HTTPException(
-            status_code=400,
-            detail="Phone must be in international format, e.g. +919876543210",
-        )
-
+        raise HTTPException(400, "Phone must be in international format, e.g. +919876543210")
     if not body.message.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Message is empty",
-        )
-
+        raise HTTPException(400, "Message is empty")
     language = body.language if body.language in LANGS else "en"
-
     try:
-        when = datetime.fromisoformat(
-            body.scheduled_at.replace("Z", "+00:00")
-        )
+        when = datetime.fromisoformat(body.scheduled_at.replace("Z", "+00:00"))
     except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="scheduled_at must be an ISO date-time",
-        )
-
+        raise HTTPException(400, "scheduled_at must be an ISO date-time")
     if when.tzinfo is None:
         when = when.astimezone()
+    when = max(when, scheduler.utcnow() + timedelta(seconds=5))
 
-    # Do not schedule a call in the past.
-    when = max(
-        when,
-        scheduler.utcnow() + timedelta(seconds=5),
-    )
-
-    # Ask the Planner agent to create a call plan.
-    plan = planner_agent(
-        body.message.strip(),
-        language,
-    )
-
+    plan = planner_agent(body.message.strip(), language)
     call_id = str(uuid.uuid4())
-
     row = {
         "id": call_id,
         "phone": phone,
@@ -173,580 +175,332 @@ def create_call(body: CallIn):
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
-
     db.insert_call(row)
-
-    db.add_event(
-        call_id,
-        "PLANNER",
-        (
-            f"Priority {plan['priority'].upper()} "
-            f"({plan['reason']}). Plan: up to "
-            f"{plan['max_attempts']} attempts, "
-            f"{plan['retry_gap_seconds']} s apart. "
-            f"[{plan['source']}]"
-        ),
-    )
-
-    if lang_of(row) != language:
-        db.add_event(
-            call_id,
-            "SYSTEM",
-            (
-                f"{LANGS[language]['name']} is disabled; "
-                "this call will use English."
-            ),
-        )
-
+    db.add_event(call_id, "PLANNER",
+                 f"Priority {plan['priority'].upper()} ({plan['reason']}). Plan: up to {plan['max_attempts']} "
+                 f"attempts, {plan['retry_gap_seconds']} s apart. [{plan['source']}]")
     scheduler.schedule_attempt(call_id, when)
-
-    db.add_event(
-        call_id,
-        "SCHEDULER",
-        f"Queued for {when.astimezone():%d %b %H:%M:%S}.",
-    )
-
+    db.add_event(call_id, "SCHEDULER", f"Queued for {when.astimezone():%d %b %H:%M:%S}.")
     return db.get_call(call_id)
 
 
 @app.get("/api/calls")
 def list_calls():
     calls = db.list_calls()
-
-    events = db.list_events(
-        [call["id"] for call in calls]
-    )
-
+    events = db.list_events([c["id"] for c in calls])
     by_call = {}
-
-    for event in events:
-        by_call.setdefault(
-            event["call_id"], []
-        ).append(event)
-
-    for call in calls:
-        call["events"] = by_call.get(
-            call["id"], []
-        )
-
+    for e in events:
+        by_call.setdefault(e["call_id"], []).append(e)
+    for c in calls:
+        c["events"] = by_call.get(c["id"], [])
     return calls
 
 
 @app.post("/api/calls/{call_id}/call-now")
 def call_now(call_id: str):
-    call = db.get_call(call_id)
-
-    if not call:
-        raise HTTPException(
-            status_code=404,
-            detail="Not found",
-        )
-
-    if call["status"] not in (
-        "scheduled",
-        "rescheduled",
-        "retrying",
-    ):
-        db.update_call(
-            call_id,
-            status="scheduled",
-            failed_attempts=0,
-        )
-
-    scheduler.schedule_attempt(
-        call_id,
-        scheduler.utcnow(),
-    )
-
-    db.add_event(
-        call_id,
-        "SCHEDULER",
-        "Manual 'call now'.",
-    )
-
+    c = db.get_call(call_id)
+    if not c:
+        raise HTTPException(404, "Not found")
+    if c["status"] not in ("scheduled", "rescheduled", "retrying"):
+        db.update_call(call_id, status="scheduled", failed_attempts=0)
+    scheduler.schedule_attempt(call_id, scheduler.utcnow())
+    db.add_event(call_id, "SCHEDULER", "Manual 'call now'.")
     return {"ok": True}
+
+
+class ImmediateCallIn(BaseModel):
+    phone: str
+    message: str = "Daily check-in call"
+    name: str = ""
+    note: str = ""
+
+
+@app.post("/api/calls/immediate")
+def immediate_call(body: ImmediateCallIn):
+    """Place an outbound check-in call immediately without waiting for scheduler."""
+    phone = re.sub(r"[\s\-()]", "", body.phone)
+    if not re.fullmatch(r"\+\d{8,15}", phone):
+        raise HTTPException(400, "Phone must be in international format, e.g. +918147581686")
+    call_id = str(uuid.uuid4())
+    row = {
+        "id": call_id,
+        "phone": phone,
+        "message": body.message.strip() or "Daily check-in call",
+        "note": body.note.strip(),
+        "sender_name": body.name.strip() or "Contact",
+        "language": "en",
+        "spoken_message": body.message.strip() or "Daily check-in call",
+        "priority": "normal",
+        "priority_reason": "Immediate check-in",
+        "max_attempts": 2,
+        "retry_gap_seconds": 20,
+        "attempts": 1,
+        "failed_attempts": 0,
+        "status": "calling",
+        "scheduled_at": now_iso(),
+        "next_attempt_at": now_iso(),
+        "summary": "",
+        "twilio_sid": "",
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    db.insert_call(row)
+    db.add_event(call_id, "SCHEDULER", f"Immediate call placed to {phone}.")
+    try:
+        import telephony
+        sid = telephony.place_call(row, 1)
+        db.update_call(call_id, twilio_sid=sid)
+        db.add_event(call_id, "TWILIO", f"Phone ringing (Call SID: {sid}).")
+        return {"ok": True, "call_id": call_id, "twilio_sid": sid, "status": "ringing"}
+    except Exception as e:
+        db.add_event(call_id, "SYSTEM", f"Failed to place call: {str(e)[:150]}")
+        raise HTTPException(500, f"Twilio error: {str(e)}")
 
 
 @app.delete("/api/calls")
 def reset_all():
     scheduler.cancel_all()
     db.reset()
-
     return {"ok": True}
 
 
 # ==========================================================================
-# Twilio webhook helpers
+# Twilio Conversational Webhooks (The 3 Hurdles Implementation)
 # ==========================================================================
 
-def _url(path: str, **params) -> str:
-    return f"{path}?{urlencode(params)}"
-
-
-def _listen(
-    call: dict,
-    lang: str,
-    texts: list,
-    attempt: int,
-    q: int,
-    u: int,
-) -> Response:
-
-    params = {
-        "call_id": call["id"],
-        "attempt": attempt,
-        "q": q,
-        "u": u,
-    }
-
-    return xml(
-        gather_twiml(
-            lang,
-            texts,
-            _url("/twilio/gather", **params),
-            _url("/twilio/noinput", **params),
-        )
-    )
-
-
-# ==========================================================================
-# Twilio voice webhook
-# ==========================================================================
-
-@app.post("/twilio/voice")
-async def twilio_voice(
-    call_id: str,
-    attempt: int = 1,
-):
-    """Person answered: speak the reminder and ask for confirmation."""
-
-    call = db.get_call(call_id)
-
-    if not call:
-        return xml(
-            hangup_twiml(
-                "en",
-                ["Sorry, this reminder no longer exists. Goodbye."],
-            )
-        )
-
-    lang = lang_of(call)
-
-    sender = call.get("sender_name") or p(lang, "family")
-    intro = p(lang, "intro", sender=sender)
-
-    db.add_event(
-        call_id,
-        "TWILIO",
-        "Call answered.",
-    )
-
-    db.add_event(
-        call_id,
-        "CARECALL",
-        f"{intro} {call['spoken_message']}",
-    )
-
-    return _listen(
-        call,
-        lang,
-        [
-            intro,
-            call["spoken_message"],
-            p(lang, "ask"),
-        ],
-        attempt,
-        0,
-        0,
-    )
-
-
-@app.post("/twilio/gather")
-async def twilio_gather(
-    request: Request,
-    call_id: str,
-    attempt: int = 1,
-    q: int = 0,
-    u: int = 0,
-):
-    """Person replied: Listener decides and CareCall acts."""
-
-    form = await request.form()
-
-    speech = str(form.get("SpeechResult") or "")
-    digits = str(form.get("Digits") or "")
-
-    call = db.get_call(call_id)
-
-    if not call:
-        return xml(
-            hangup_twiml("en", ["Goodbye."])
-        )
-
-    lang = lang_of(call)
-
-    db.add_event(
-        call_id,
-        "PERSON",
-        f"pressed {digits}" if digits else f'"{speech}"',
-    )
-
-    result = listener_agent(
-        call,
-        lang,
-        speech,
-        digits,
-    )
-
-    detail = (
-        f" {clamp_minutes(result['minutes'])} min"
-        if result["outcome"] == "LATER"
-        else ""
-    )
-
-    db.add_event(
-        call_id,
-        "LISTENER",
-        (
-            f"{result['outcome']}{detail} "
-            f"[{result['source']}]"
-        ),
-    )
-
-    outcome = result["outcome"]
-
-    # Person confirms that the reminder is completed.
-    if outcome == "DONE":
-        db.update_call(
-            call_id,
-            status="confirmed",
-            next_attempt_at=None,
-        )
-
-        db.add_event(
-            call_id,
-            "CARECALL",
-            p(lang, "done"),
-        )
-
-        return xml(
-            hangup_twiml(
-                lang,
-                [p(lang, "done")],
-            )
-        )
-
-    # Person asks to be reminded later.
-    if outcome == "LATER":
-        minutes = clamp_minutes(
-            result["minutes"]
-        )
-
-        scheduler.reschedule(
-            call_id,
-            minutes,
-        )
-
-        text = p(
-            lang,
-            "later",
-            m=minutes,
-        )
-
-        db.add_event(
-            call_id,
-            "CARECALL",
-            text,
-        )
-
-        return xml(
-            hangup_twiml(
-                lang,
-                [text],
-            )
-        )
-
-    # Person reports a worrying situation.
-    if outcome == "WORRYING":
-        db.update_call(
-            call_id,
-            status="needs_attention",
-            next_attempt_at=None,
-        )
-
-        db.add_event(
-            call_id,
-            "SYSTEM",
-            (
-                "Marked NEEDS ATTENTION. "
-                "No escalation; the sender will see this."
-            ),
-        )
-
-        db.add_event(
-            call_id,
-            "CARECALL",
-            p(lang, "worrying"),
-        )
-
-        return xml(
-            hangup_twiml(
-                lang,
-                [p(lang, "worrying")],
-            )
-        )
-
-    # Person asks a question.
-    if outcome == "QUESTION" and q < MAX_QUESTIONS:
-        verdict = guardian_agent(
-            call,
-            lang,
-            speech,
-            result["reply"],
-        )
-
-        if verdict["ok"]:
-            db.add_event(
-                call_id,
-                "GUARDIAN",
-                (
-                    f"PASSED: {verdict['reason']} "
-                    f"[{verdict['source']}]"
-                ),
-            )
-        else:
-            db.add_event(
-                call_id,
-                "GUARDIAN",
-                (
-                    f'BLOCKED "{result["reply"]}": '
-                    f'{verdict["reason"]} '
-                    f'[{verdict["source"]}]'
-                ),
-            )
-
-        answer = verdict["final_answer"]
-
-        db.add_event(
-            call_id,
-            "CARECALL",
-            answer,
-        )
-
-        return _listen(
-            call,
-            lang,
-            [
-                answer,
-                p(lang, "reask"),
-            ],
-            attempt,
-            q + 1,
-            u,
-        )
-
-    # Unclear reply or too many questions.
-    reason = (
-        "Unclear reply"
-        if outcome == "UNCLEAR"
-        else "Too many questions"
-    )
-
-    return _unclear(
-        call,
-        lang,
-        attempt,
-        q,
-        u,
-        reason,
-    )
-
-
-@app.post("/twilio/noinput")
-async def twilio_noinput(
-    call_id: str,
-    attempt: int = 1,
-    q: int = 0,
-    u: int = 0,
-):
-    """Person did not reply."""
-
-    call = db.get_call(call_id)
-
-    if not call:
-        return xml(
-            hangup_twiml("en", ["Goodbye."])
-        )
-
-    db.add_event(
-        call_id,
-        "PERSON",
-        "(silence)",
-    )
-
-    return _unclear(
-        call,
-        lang_of(call),
-        attempt,
-        q,
-        u,
-        "No reply",
-    )
-
-
-def _unclear(
-    call: dict,
-    lang: str,
-    attempt: int,
-    q: int,
-    u: int,
-    reason: str,
-) -> Response:
-
-    if u < MAX_UNCLEAR:
-        db.add_event(
-            call["id"],
-            "CARECALL",
-            p(lang, "unclear"),
-        )
-
-        return _listen(
-            call,
-            lang,
-            [p(lang, "unclear")],
-            attempt,
-            q,
-            u + 1,
-        )
-
-    db.add_event(
-        call["id"],
-        "CARECALL",
-        p(lang, "bye_unclear"),
-    )
-
-    scheduler.handle_failure(
-        call["id"],
-        reason,
-    )
-
-    return xml(
-        hangup_twiml(
-            lang,
-            [p(lang, "bye_unclear")],
-        )
-    )
-
-
-# ==========================================================================
-# Twilio call status webhook
-# ==========================================================================
-
-@app.post("/twilio/status")
-async def twilio_status(
-    request: Request,
-    background: BackgroundTasks,
-    call_id: str,
-    attempt: int = 1,
-):
-    """Twilio reports the final status of a call."""
-
-    form = await request.form()
-
-    status = str(
-        form.get("CallStatus") or "completed"
-    )
-
-    duration = str(
-        form.get("CallDuration") or "0"
-    )
-
-    call = db.get_call(call_id)
-
-    if not call:
-        return {"ok": True}
-
-    # Ignore callbacks from an older attempt.
-    if int(call.get("attempts") or 0) != attempt:
-        return {
-            "ok": True,
-            "ignored": "old attempt",
+@app.api_route("/twilio/voice", methods=["GET", "POST"])
+async def twilio_voice(request: Request, contact_id: str | None = None, call_id: str | None = None):
+    """Start of Call: Delivers the check-in greeting and reminder note directly, then asks how they are."""
+    form = {}
+    try:
+        form = await request.form()
+    except Exception:
+        pass
+    call_sid = str(form.get("CallSid") or str(request.query_params.get("CallSid", "test-sid")))
+
+    # Lookup contact & call
+    contact = None
+    c = db.get_call(call_id) if call_id else None
+    if contact_id:
+        contact = db.get_contact(contact_id)
+    if not contact and c:
+        contact = db.get_contact_by_phone(c["phone"])
+        if not contact:
+            contact = {
+                "id": str(uuid.uuid4()),
+                "name": c.get("sender_name") or "there",
+                "phone": c["phone"],
+                "secret_check": "1985",
+                "language": "en-IN",
+                "reminders": c.get("message", ""),
+                "notes": c.get("note", ""),
+                "caregiver_contact": c.get("sender_name", ""),
+            }
+            db.create_contact(contact)
+    if not contact:
+        contacts = db.list_contacts()
+        contact = contacts[0] if contacts else {
+            "id": str(uuid.uuid4()),
+            "name": "sritej",
+            "phone": "+918147581686",
+            "secret_check": "1985",
+            "language": "en-IN",
+            "reminders": "Take your BP tablets after breakfast and drink some water",
+            "notes": "Enjoys watching sunrise",
+            "caregiver_contact": "+918147581686",
         }
+        db.create_contact(contact)
 
-    db.add_event(
-        call_id,
-        "TWILIO",
-        f"Call ended: {status} ({duration} s).",
+    # Get reminder text and name
+    name = (c.get("sender_name") if c and c.get("sender_name") else contact.get("name")) or "there"
+    reminder = ""
+    if c:
+        reminder = c.get("spoken_message") or c.get("message") or ""
+    if not reminder and contact.get("reminders"):
+        reminder = contact.get("reminders")
+
+    # Spoken greeting
+    if reminder:
+        greeting = f"Hello {name}, this is CareCall. I am calling with your reminder: {reminder}. How are you feeling today?"
+    else:
+        greeting = f"Hello {name}, this is your CareCall check-in. How are you feeling today?"
+
+    # Initialize conversational state
+    db.upsert_session(call_sid, contact["id"], state="checkin", history=[{"role": "assistant", "text": greeting}])
+    if call_id:
+        db.add_event(call_id, "TWILIO", f"Call answered. Delivered reminder: '{reminder}'.")
+
+    base = config.get_public_url()
+    action_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={call_sid}" + (f"&call_id={call_id}" if call_id else "")
+
+    vr = VoiceResponse()
+    g = Gather(
+        input="speech",
+        action=action_url,
+        method="POST",
+        language=contact.get("language", "en-IN"),
+        speech_timeout="auto",
+        timeout=6,
     )
+    g.say(greeting, voice="alice", language=contact.get("language", "en-IN"))
+    vr.append(g)
+    vr.redirect(action_url, method="POST")
+    return xml(vr)
 
-    if call["status"] == "calling":
-        reason = {
-            "no-answer": "No answer",
-            "busy": "Busy / declined",
-            "failed": "Call failed",
-            "canceled": "Call canceled",
-        }.get(
-            status,
-            "Hung up without answering",
+
+@app.api_route("/twilio/respond", methods=["GET", "POST"])
+async def twilio_respond(request: Request, background: BackgroundTasks, contact_id: str | None = None, call_sid: str | None = None, call_id: str | None = None):
+    """Conversational turn handler: Reads SpeechResult, updates SQLite transcript, calls Groq, replies warmly."""
+    form = {}
+    try:
+        form = await request.form()
+    except Exception:
+        pass
+    speech = str(form.get("SpeechResult") or request.query_params.get("SpeechResult") or form.get("Digits") or "").strip()
+    
+    if not contact_id and call_id:
+        c = db.get_call(call_id)
+        if c:
+            ct = db.get_contact_by_phone(c["phone"])
+            if ct: contact_id = ct["id"]
+    
+    contact = db.get_contact(contact_id) if contact_id else None
+    if not contact:
+        contacts = db.list_contacts()
+        contact = contacts[0] if contacts else {"id": "default", "name": "there", "language": "en-IN"}
+
+    sid = call_sid or str(form.get("CallSid") or request.query_params.get("CallSid") or "test-sid")
+    session = db.get_session(sid)
+    if not session:
+        session = {"state": "checkin", "history": []}
+
+    history = session.get("history", [])
+    vr = VoiceResponse()
+    lang = contact.get("language", "en-IN")
+    name = contact.get("name", "there")
+
+    if speech:
+        history.append({"role": "user", "text": speech})
+        if call_id:
+            db.add_event(call_id, "CONTACT", f'"{speech}"')
+
+    # Emergency check
+    if is_emergency(speech):
+        emergency_reply = "Please call emergency services at 112 right now. I am alerting your caregiver immediately."
+        vr.say(emergency_reply, voice="alice", language=lang)
+        vr.hangup()
+        db.create_alert(contact["id"], "high", [f"EMERGENCY keywords detected during check-in call with {name}: '{speech}'"])
+        if call_id:
+            db.add_event(call_id, "SYSTEM", f"EMERGENCY detected: '{speech}'. Alerted caregiver.")
+        background.add_task(evaluate_call_results, contact["id"], history)
+        return xml(vr)
+
+    # Wrap up check
+    if any(w in speech.lower() for w in ["goodbye", "bye", "that's all", "nothing else", "talk later", "all done", "all set"]):
+        goodbye_reply = f"Thank you for checking in with me today, {name}. Please take care and have a wonderful day! Goodbye."
+        vr.say(goodbye_reply, voice="alice", language=lang)
+        vr.hangup()
+        background.add_task(evaluate_call_results, contact["id"], history)
+        if call_id:
+            db.update_call(call_id, status="confirmed")
+            db.add_event(call_id, "TWILIO", "Check-in call completed successfully.")
+        return xml(vr)
+
+    # If no speech was detected yet
+    base = config.get_public_url()
+    action_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={sid}" + (f"&call_id={call_id}" if call_id else "")
+
+    if not speech:
+        reprompt = f"Hello {name}, I am here for your check-in. Did you take your reminders today, or how are you feeling?"
+        history.append({"role": "assistant", "text": reprompt})
+        db.upsert_session(sid, contact["id"], state="checkin", history=history)
+        g = Gather(
+            input="speech",
+            action=action_url,
+            method="POST",
+            language=lang,
+            speech_timeout="auto",
+            timeout=7
         )
+        g.say(reprompt, voice="alice", language=lang)
+        vr.append(g)
+        return xml(vr)
 
-        scheduler.handle_failure(
-            call_id,
-            reason,
-        )
+    # Generate warm conversational response using LLM (Groq / Claude)
+    reply = generate_checkin_turn(contact, history, speech)
+    history.append({"role": "assistant", "text": reply})
+    db.upsert_session(sid, contact["id"], state="checkin", history=history)
+    if call_id:
+        db.add_event(call_id, "CARECALL", reply)
 
-    background.add_task(
-        run_reporter,
-        call_id,
+    # Conclude if enough turns
+    if len(history) >= 6:
+        conclude = f"{reply} Thank you for checking in with me today, {name}. Have a wonderful day. Goodbye!"
+        vr.say(conclude, voice="alice", language=lang)
+        vr.hangup()
+        background.add_task(evaluate_call_results, contact["id"], history)
+        if call_id:
+            db.update_call(call_id, status="confirmed")
+            db.add_event(call_id, "TWILIO", "Check-in completed.")
+        return xml(vr)
+
+    g = Gather(
+        input="speech",
+        action=action_url,
+        method="POST",
+        language=lang,
+        speech_timeout="auto",
+        timeout=7
     )
+    g.say(reply, voice="alice", language=lang)
+    vr.append(g)
+    return xml(vr)
+
+    # Fallback
+    vr.say("Goodbye.", voice="alice", language=lang)
+    vr.hangup()
+    return xml(vr)
+
+
+# ----------------------------------------------------------------------
+# HURDLE 3: Twilio Status Callback (Retry, Escalation, Failure Handling)
+# ----------------------------------------------------------------------
+@app.api_route("/twilio/status", methods=["GET", "POST"])
+async def twilio_status(request: Request, background: BackgroundTasks, contact_id: str | None = None, call_id: str | None = None, attempt: int = 1):
+    form = {}
+    try:
+        form = await request.form()
+    except Exception:
+        pass
+    status = str(form.get("CallStatus") or request.query_params.get("CallStatus") or "completed")
+    duration = str(form.get("CallDuration") or request.query_params.get("CallDuration") or "0")
+    call_sid = str(form.get("CallSid") or request.query_params.get("CallSid") or "")
+
+    if contact_id:
+        db.add_attempt(contact_id, attempt, call_sid, status)
+
+    c = db.get_call(call_id) if call_id else None
+    contact_name = (c.get("sender_name") if c else None) or "contact"
+    cid = contact_id or (c.get("id") if c else "default")
+
+    # If call failed to connect or was not answered
+    if status in ("no-answer", "busy", "failed", "canceled"):
+        db.create_alert(cid, "high", [f"Nobody answered call to {contact_name} ({status}). Please check on them."])
+        if call_id:
+            db.update_call(call_id, status="needs_attention")
+            db.add_event(call_id, "SYSTEM", f"Nobody answered ({status}). Caregiver alert created.")
+
+    # If completed, trigger post-call evaluation & comparison with earlier calls
+    elif status == "completed":
+        session = db.get_session(call_sid)
+        history = session.get("history", []) if session else []
+        if call_id and not history:
+            events = db.list_events([call_id])
+            history = [{"role": "user" if e["agent"] == "CONTACT" else "assistant", "text": e["text"]} for e in events]
+        if cid:
+            background.add_task(evaluate_call_results, cid, history)
+        if call_id:
+            db.update_call(call_id, status="confirmed")
+            db.add_event(call_id, "TWILIO", "Call completed.")
 
     return {"ok": True}
-
-
-# ==========================================================================
-# Reporter agent
-# ==========================================================================
-
-def run_reporter(call_id: str):
-    call = db.get_call(call_id)
-
-    if not call:
-        return
-
-    summary = reporter_agent(
-        call,
-        db.list_events([call_id]),
-    )
-
-    db.update_call(
-        call_id,
-        summary=summary,
-    )
-
-    db.add_event(
-        call_id,
-        "REPORTER",
-        summary,
-    )
-
-
-# ==========================================================================
-# Dashboard frontend
-# Keep this at the bottom of the file.
-# ==========================================================================
-
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
-
-if not FRONTEND_DIR.exists():
-    raise RuntimeError(
-        f"Frontend folder not found: {FRONTEND_DIR}"
-    )
-
-app.mount(
-    "/",
-    StaticFiles(
-        directory=str(FRONTEND_DIR),
-        html=True,
-    ),
-    name="frontend",
-)

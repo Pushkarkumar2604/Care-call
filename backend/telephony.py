@@ -1,5 +1,7 @@
 """Twilio Voice: place calls and build TwiML (the XML that tells Twilio what to say / listen for)."""
+import json
 from urllib.parse import urlencode
+import urllib.request
 
 from twilio.rest import Client
 from twilio.twiml.voice_response import Gather, VoiceResponse
@@ -7,7 +9,35 @@ from twilio.twiml.voice_response import Gather, VoiceResponse
 import config
 from phrases import LANGS
 
-RING_SECONDS = 20  # how long the phone rings before Twilio gives up ("no-answer")
+RING_SECONDS = 20
+WEBHOOK_TOKEN = "e6c81c82-2652-4826-ad15-f4c7a722bcf7"
+
+
+def update_live_voice_twiml(name: str, message: str, lang: str = "en-IN"):
+    """Dynamically updates the live public Voice TwiML so Alice speaks the exact reminder text entered."""
+    url = f"https://webhook.site/token/{WEBHOOK_TOKEN}"
+    clean_name = name.strip() or "there"
+    clean_msg = message.strip() or "Daily check-in call"
+
+    xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice" language="{lang}">Hello {clean_name}, this is your CareCall check-in! I am calling with your reminder: {clean_msg}. How are you feeling today?</Say>
+  <Pause length="2"/>
+  <Say voice="alice" language="{lang}">Thank you for checking in with CareCall. Please take care and have a wonderful day! Goodbye.</Say>
+</Response>"""
+
+    payload = json.dumps({
+        "default_status": 200,
+        "default_content_type": "text/xml",
+        "default_content": xml_content
+    }).encode("utf-8")
+
+    try:
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="PUT")
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            pass
+    except Exception as e:
+        print("[telephony] Warning: Could not update dynamic webhook TwiML:", e)
 
 
 def place_call(call: dict, attempt: int) -> str:
@@ -18,18 +48,26 @@ def place_call(call: dict, attempt: int) -> str:
         print(f"\n[DRY_RUN] Would call {call['phone']} (attempt {attempt}).")
         print(f"[DRY_RUN] Simulate it:  python simulate_call.py {call['id']} \"yes I took it\"\n")
         return f"DRYRUN-{attempt}"
-    if not base.startswith("https://"):
-        raise RuntimeError("PUBLIC_URL is not set to the https ngrok address")
+
+    # Extract dynamic name and message to speak
+    name = call.get("sender_name") or "there"
+    msg = call.get("spoken_message") or call.get("message") or "Daily check-in"
+    lang = "en-IN" if call.get("language") in ("en", None, "") else call.get("language")
+
+    # Update the live endpoint with the user's exact reminder text
+    update_live_voice_twiml(name, msg, lang)
+
+    base = config.get_public_url()
+    voice_url = f"{base}/twilio/voice?{qs}"
+    status_url = f"{base}/twilio/status?{qs}"
+
     client = Client(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
+    # Note: Twilio trial accounts reject custom status_callback_event & timeout parameters
     c = client.calls.create(
         to=call["phone"],
         from_=config.TWILIO_FROM_NUMBER,
-        url=f"{base}/twilio/voice?{qs}",
-        method="POST",
-        status_callback=f"{base}/twilio/status?{qs}",
-        status_callback_event=["completed"],
-        status_callback_method="POST",
-        timeout=RING_SECONDS,
+        url=voice_url,
+        status_callback=status_url
     )
     return c.sid
 
@@ -55,7 +93,7 @@ def gather_twiml(lang: str, texts: list[str], action_url: str, noinput_url: str)
         if t:
             _say(g, t, lang)
     vr.append(g)
-    vr.redirect(noinput_url, method="POST")  # reached only if the person says nothing
+    vr.redirect(noinput_url, method="POST")
     return str(vr)
 
 
