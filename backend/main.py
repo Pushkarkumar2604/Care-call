@@ -67,6 +67,16 @@ def index():
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
+@app.api_route("/twilio/test", methods=["GET", "POST"])
+def twilio_test():
+    """Test voice call endpoint: speaks the CareCall intro and medicine reminder."""
+    vr = VoiceResponse()
+    vr.say("Hello from CareCall. This is team Carpe Diem.", language="en-IN")
+    vr.pause(length=1)
+    vr.say("Please remember to take your blood pressure tablet after breakfast. If you can hear this, your CareCall reminder system is working successfully!", language="en-IN")
+    return Response(content=str(vr), media_type="application/xml")
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True, "dry_run": config.DRY_RUN, "demo_mode": config.DEMO_MODE, "db": BACKEND_NAME,
