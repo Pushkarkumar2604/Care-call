@@ -46,7 +46,6 @@ def place_call(call: dict, attempt: int) -> str:
     qs = urlencode({"call_id": call["id"], "attempt": attempt})
     if config.DRY_RUN:
         print(f"\n[DRY_RUN] Would call {call['phone']} (attempt {attempt}).")
-        print(f"[DRY_RUN] Simulate it:  python simulate_call.py {call['id']} \"yes I took it\"\n")
         return f"DRYRUN-{attempt}"
 
     # Extract dynamic name and message to speak
@@ -54,20 +53,26 @@ def place_call(call: dict, attempt: int) -> str:
     msg = call.get("spoken_message") or call.get("message") or "Daily check-in"
     lang = "en-IN" if call.get("language") in ("en", None, "") else call.get("language")
 
-    # Update the live endpoint with the user's exact reminder text
+    # 1. Update the permanent cloud TwiML endpoint with the exact reminder text
     update_live_voice_twiml(name, msg, lang)
 
-    base = config.get_public_url()
-    voice_url = f"{base}/twilio/voice?{qs}"
-    status_url = f"{base}/twilio/status?{qs}"
+    # 2. Select the most reliable active Voice URL
+    voice_url = f"https://webhook.site/{WEBHOOK_TOKEN}?{qs}"
+    if base and base.startswith("https://") and "supabase" not in base:
+        try:
+            req = urllib.request.Request(f"{base}/twilio/voice?{qs}", headers={"User-Agent": "CareCall/1.0"})
+            with urllib.request.urlopen(req, timeout=1.5) as probe:
+                if probe.status == 200:
+                    voice_url = f"{base}/twilio/voice?{qs}"
+        except Exception:
+            pass
 
     client = Client(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
-    # Note: Twilio trial accounts reject custom status_callback_event & timeout parameters
+    # Place the call with guaranteed 200 OK voice URL
     c = client.calls.create(
         to=call["phone"],
         from_=config.TWILIO_FROM_NUMBER,
-        url=voice_url,
-        status_callback=status_url
+        url=voice_url
     )
     return c.sid
 
