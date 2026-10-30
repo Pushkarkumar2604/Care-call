@@ -9,6 +9,10 @@ from db import PENDING, db
 
 sched = BackgroundScheduler(timezone="UTC")
 
+# Retry rule: total call attempts, and seconds to wait between attempts
+MAX_ATTEMPTS = 5
+RETRY_GAP_SECONDS = 20
+
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -69,22 +73,26 @@ def fire_call(call_id: str):
 
 
 def handle_failure(call_id: str, reason: str):
-    """No answer / unclear / hung up: retry by the Planner's plan, or mark unreachable."""
+    """No answer / unclear / hung up: retry every RETRY_GAP_SECONDS, up to MAX_ATTEMPTS, then raise an urgent alert."""
     c = db.get_call(call_id)
     if not c:
         return
     failed = int(c.get("failed_attempts") or 0) + 1
-    max_attempts = int(c.get("max_attempts") or 2)
-    if failed >= max_attempts:
-        db.update_call(call_id, status="unreachable", failed_attempts=failed, next_attempt_at=None)
-        db.add_event(call_id, "SCHEDULER", f"{reason}. No success after {failed} attempt(s): marked UNREACHABLE.")
+    if failed >= MAX_ATTEMPTS:
+        db.update_call(
+            call_id,
+            status="needs_attention",
+            failed_attempts=failed,
+            next_attempt_at=None,
+            summary="ATTENTION: Nobody answered after 5 call attempts. Please check on them urgently.",
+        )
+        db.add_event(call_id, "SCHEDULER", f"{reason}. No success after {failed} attempt(s): URGENT ATTENTION raised.")
         return
-    gap = int(c.get("retry_gap_seconds") or 600)
-    when = utcnow() + timedelta(seconds=gap)
+    when = utcnow() + timedelta(seconds=RETRY_GAP_SECONDS)
     db.update_call(call_id, status="retrying", failed_attempts=failed, next_attempt_at=when.isoformat())
     schedule_attempt(call_id, when)
     db.add_event(call_id, "SCHEDULER",
-                 f"{reason}. Retry {failed + 1} of {max_attempts} in {gap} s ({c['priority']} priority plan).")
+                 f"{reason}. Retry {failed + 1} of {MAX_ATTEMPTS} in {RETRY_GAP_SECONDS} s.")
 
 
 def reschedule(call_id: str, minutes: int):
