@@ -22,20 +22,23 @@ def is_emergency(text: str) -> bool:
     return any(w in t for w in EMERGENCY_WORDS)
 
 
-def is_contact_verified_by_keyword(speech: str, contact_name: str, secret_keyword: str = "") -> bool:
-    """Assigns ONE primary keyword (the contact's name, e.g. 'sritej') to verify the actual person.
-    
-    If the speaker mentions their name keyword (e.g. 'sritej' or 'i am sritej') or the secret keyword,
-    the agent immediately confirms identity.
+def is_contact_verified_by_keyword(speech: str, contact_name: str, secret_keyword: str = "2007") -> bool:
+    """Verifies contact identity using the assigned birth year keyword (2007) or name.
+    Supports speech, digits (DTMF), and phonetic spellings like 'two thousand seven'.
     """
     t = speech.lower().strip()
-    # 1. Primary Keyword: the contact's name (e.g. 'sritej')
-    first_name = contact_name.lower().split()[0] if contact_name else "sritej"
-    if first_name in t:
+    digits = "".join(re.findall(r"\d+", t))
+    
+    # 1. Primary Keyword: Birth year (2007)
+    expected_year = (secret_keyword or "2007").strip().lower()
+    if expected_year in digits or expected_year in t:
+        return True
+    if "two thousand seven" in t or "two thousand and seven" in t:
         return True
         
-    # 2. Secret Keyword (if configured)
-    if secret_keyword and secret_keyword.lower().strip() in t:
+    # 2. Also accept if they explicitly state contact name
+    first_name = contact_name.lower().split()[0] if contact_name else "sritej"
+    if first_name in t:
         return True
         
     return False

@@ -21,8 +21,8 @@ def update_live_voice_twiml(name: str, message: str, lang: str = "en-IN"):
 
     xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="{action_url}" method="POST" speechTimeout="auto" language="{lang}" timeout="6">
-    <Say voice="alice" language="{lang}">Hello! May I know who is speaking? Please state your name.</Say>
+  <Gather input="speech dtmf" action="{action_url}" method="POST" speechTimeout="auto" language="{lang}" timeout="6">
+    <Say voice="alice" language="{lang}">Hello! This is CareCall. May I verify your identity? Please state your year of birth.</Say>
   </Gather>
   <Redirect method="POST">{action_url}&amp;noinput=1</Redirect>
 </Response>"""

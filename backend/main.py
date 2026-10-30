@@ -319,11 +319,11 @@ async def twilio_voice(request: Request, contact_id: str | None = None, call_id:
     name = (c.get("sender_name") if c and c.get("sender_name") else contact.get("name")) or "sritej"
     lang = contact.get("language", "en-IN")
 
-    # STRICT INITIAL PROMPT: First say hello, then wait for keyword
-    ask_identity = "Hello! May I know who is speaking? Please state your name."
+    # STRICT INITIAL PROMPT: First say hello, then wait for birth year keyword
+    ask_identity = "Hello! This is CareCall. May I verify your identity? Please state your year of birth."
     db.upsert_session(call_sid, contact["id"], state="verify", history=[{"role": "assistant", "text": ask_identity}])
     if call_id:
-        db.add_event(call_id, "TWILIO", "Call answered. Asking for identity keyword.")
+        db.add_event(call_id, "TWILIO", "Call answered. Asking for birth year verification (2007).")
 
     base = config.get_public_url()
     action_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={call_sid}&stage=verify" + (f"&call_id={call_id}" if call_id else "")
@@ -331,7 +331,7 @@ async def twilio_voice(request: Request, contact_id: str | None = None, call_id:
 
     vr = VoiceResponse()
     g = Gather(
-        input="speech",
+        input="speech dtmf",
         action=action_url,
         method="POST",
         language=lang,
@@ -365,7 +365,7 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
     contact = db.get_contact(contact_id) if contact_id else None
     if not contact:
         contacts = db.list_contacts()
-        contact = contacts[0] if contacts else {"id": "default", "name": "sritej", "language": "en-IN"}
+        contact = contacts[0] if contacts else {"id": "default", "name": "sritej", "language": "en-IN", "secret_check": "2007"}
 
     sid = call_sid or str(form.get("CallSid") or request.query_params.get("CallSid") or "test-sid")
     session = db.get_session(sid)
@@ -379,17 +379,17 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
     base = config.get_public_url()
 
     # -------------------------------------------------------------------------
-    # STAGE 1: IDENTITY KEYWORD GATE
+    # STAGE 1: BIRTH YEAR KEYWORD GATE (2007)
     # -------------------------------------------------------------------------
     if curr_stage == "verify":
         from conversation import is_contact_verified_by_keyword
 
         # Case A: Silence / Nothing spoken -> Mark as Alert & Cut Call
         if is_noinput or not speech:
-            alert_reason = f"No response received during identity verification for {name}. Nobody answered or recipient remained silent."
+            alert_reason = f"No response received during birth year verification for {name}. Nobody answered or recipient remained silent."
             db.create_alert(contact["id"], "high", [alert_reason])
             if call_id:
-                db.add_event(call_id, "GUARDIAN", f"ALERT: Silent/No response received. Alerted caregiver.")
+                db.add_event(call_id, "GUARDIAN", f"ALERT: Silent/No response for birth year check. Alerted caregiver.")
             silence_reply = "No response received. For your security, ending call. Goodbye."
             vr.say(silence_reply, voice="alice", language=lang)
             vr.hangup()
@@ -400,10 +400,10 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
         if call_id:
             db.add_event(call_id, "CONTACT", f'"{speech}"')
 
-        # Check if keyword ('sritej') is present
-        verified = is_contact_verified_by_keyword(speech, name, contact.get("secret_check"))
+        # Check if birth year keyword ('2007') is present
+        verified = is_contact_verified_by_keyword(speech, name, contact.get("secret_check", "2007"))
 
-        # Case B: Correct keyword ('sritej') spoken -> Proceed
+        # Case B: Correct keyword ('2007') spoken -> Proceed
         if verified:
             reminder = (c.get("spoken_message") if c else "") or (c.get("message") if c else "") or contact.get("reminders") or "Daily check-in call"
             verified_reply = f"Identity verified! Hello {name}. I am calling with your reminder: {reminder}. How are you feeling today?"
@@ -411,12 +411,12 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
             db.upsert_session(sid, contact["id"], state="chat", history=history)
             
             if call_id:
-                db.add_event(call_id, "GUARDIAN", f"Identity verified via keyword '{name}' (spoken: '{speech}').")
+                db.add_event(call_id, "GUARDIAN", f"Identity verified via birth year 2007 (spoken: '{speech}').")
                 db.add_event(call_id, "CARECALL", f"Delivered reminder: '{reminder}'.")
 
             chat_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={sid}&stage=chat" + (f"&call_id={call_id}" if call_id else "")
             g = Gather(
-                input="speech",
+                input="speech dtmf",
                 action=chat_url,
                 method="POST",
                 language=lang,
@@ -428,14 +428,14 @@ async def twilio_respond(request: Request, background: BackgroundTasks, contact_
             vr.redirect(chat_url, method="POST")
             return xml(vr)
 
-        # Case C: Said something other than 'sritej' -> Mark as Alert & Cut Call
+        # Case C: Said something other than '2007' -> Mark as Alert & Cut Call
         else:
-            alert_reason = f"Unverified recipient answered call for {name}: '{speech}'. Keyword '{name}' missing. Reminders kept private."
+            alert_reason = f"Unverified recipient answered call for {name}: '{speech}'. Expected birth year 2007."
             db.create_alert(contact["id"], "high", [alert_reason])
             if call_id:
-                db.add_event(call_id, "GUARDIAN", f"ALERT: Recipient said '{speech}' (keyword '{name}' missing). Cut call & alerted caregiver.")
+                db.add_event(call_id, "GUARDIAN", f"ALERT: Recipient said '{speech}' (birth year 2007 missing). Cut call & alerted caregiver.")
             
-            reject_msg = "Sorry, identity keyword was not recognized. For privacy, reminders cannot be disclosed. Goodbye."
+            reject_msg = "Sorry, birth year was not verified. For privacy, reminders cannot be disclosed. Goodbye."
             vr.say(reject_msg, voice="alice", language=lang)
             vr.hangup()
             return xml(vr)

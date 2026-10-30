@@ -29,21 +29,21 @@ sid_other = f"sid-other-{uuid.uuid4().hex[:6]}"
 sid_contact = f"sid-contact-{uuid.uuid4().hex[:6]}"
 sid_fail = f"sid-fail-{uuid.uuid4().hex[:6]}"
 
-# --- HURDLE 1: Identity Keyword Gate ---
-print("\n[HURDLE 1] Testing Identity Keyword Gate (Privacy Protection)...")
-# Call starts: Alice asks who is speaking
+# --- HURDLE 1: Identity Keyword Gate (Birth Year 2007) ---
+print("\n[HURDLE 1] Testing Identity Keyword Gate (Birth Year 2007)...")
+# Call starts: Alice asks for year of birth
 r_voice = client.post(f"/twilio/voice?contact_id={c['id']}&CallSid={sid_other}")
 assert r_voice.status_code == 200
-assert "state your name" in r_voice.text.lower() or "who is speaking" in r_voice.text.lower()
+assert "year of birth" in r_voice.text.lower()
 assert "blood pressure" not in r_voice.text, "Privacy leak: Reminder disclosed before verification!"
-print("  [PASS] 1.1 Initial call connects: Asks for identity keyword before sharing reminders")
+print("  [PASS] 1.1 Initial call connects: Asks for birth year keyword before sharing reminders")
 
-# Test 1A: Wrong person answers (does NOT say 'sritej')
-r_unverified = client.post(f"/twilio/respond?contact_id={c['id']}&call_sid={sid_other}&stage=verify", data={'SpeechResult': 'No, he is outside right now'})
+# Test 1A: Wrong birth year or other person answers
+r_unverified = client.post(f"/twilio/respond?contact_id={c['id']}&call_sid={sid_other}&stage=verify", data={'SpeechResult': 'I was born in 1990'})
 assert r_unverified.status_code == 200
-assert "not recognized" in r_unverified.text.lower() or "goodbye" in r_unverified.text.lower()
+assert "not verified" in r_unverified.text.lower() or "goodbye" in r_unverified.text.lower()
 assert "blood pressure" not in r_unverified.text, "Privacy leak: Spoke reminder to wrong person!"
-print("  [PASS] 1.2 Wrong person rejected: Alert created, reminders kept strictly hidden")
+print("  [PASS] 1.2 Wrong birth year rejected: Alert created, reminders kept strictly hidden")
 
 # Test 1B: Silence / No response received
 sid_silence = f"sid-silence-{uuid.uuid4().hex[:6]}"
@@ -52,12 +52,12 @@ assert r_silent.status_code == 200
 assert "no response" in r_silent.text.lower() or "goodbye" in r_silent.text.lower()
 print("  [PASS] 1.3 Silence rejected: Alert created for unanswered/silent call")
 
-# Test 1C: Actual person speaks designated keyword ('sritej')
-r_verified = client.post(f"/twilio/respond?contact_id={c['id']}&call_sid={sid_contact}&stage=verify", data={'SpeechResult': 'Yes, speaking, this is Sritej'})
+# Test 1C: Actual person speaks designated keyword ('2007')
+r_verified = client.post(f"/twilio/respond?contact_id={c['id']}&call_sid={sid_contact}&stage=verify", data={'SpeechResult': 'I was born in 2007'})
 assert r_verified.status_code == 200
 assert "identity verified" in r_verified.text.lower()
 assert "take blood pressure tablets" in r_verified.text.lower()
-print("  [PASS] 1.4 Keyword verified: Contact said 'Sritej' -> Agent confirmed identity & unlocked reminder")
+print("  [PASS] 1.4 Keyword verified: Spoke '2007' -> Agent confirmed identity & unlocked reminder")
 
 # --- HURDLE 2: Conversational Follow-up & Emergency ---
 print("\n[HURDLE 2] Testing Conversational Follow-up & Emergency Safety...")
