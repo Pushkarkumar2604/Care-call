@@ -5,6 +5,7 @@ Paste everything between the lines into a new v0 chat.
 ---
 Build a single-page Next.js (App Router) client component in app/page.tsx using only React and Tailwind (no shadcn, no other libraries, no API routes, no Supabase client). App name: "CareCall – multi-agent reminder calls, Team Carpe Diem (Ah-11)". Teal header.
 
+
 It talks to an external FastAPI backend whose base URL the user types into a text box in the header (save it in localStorage key "carecall_api", wrap localStorage in try/catch). Every fetch must send the headers {"Content-Type":"application/json","ngrok-skip-browser-warning":"true"}.
 
 Left column: a "Schedule a call" form with fields phone (placeholder +919876543210), message (textarea, required), note for questions (optional textarea), your name (optional), date and time (datetime-local, default = now + 1 minute), language select (en English, hi Hindi, kn Kannada). On submit: POST {base}/api/calls with JSON {phone, message, note, sender_name, language, scheduled_at: new Date(when).toISOString()}. Show "Planner agent is thinking…" while waiting, then "Scheduled. Priority: <priority>" or the error from response.detail.
