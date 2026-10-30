@@ -1,0 +1,158 @@
+<!doctype html>
+<!-- FALLBACK UI: served by FastAPI at http://localhost:8000/ . Use it if the v0 page is not ready by hour 6. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CareCall</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#667085; --line:#e4e7ec; --brand:#0f766e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, Segoe UI, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--brand); color:#fff; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:20px; }
+  header .sub { opacity:.85; font-size:13px; }
+  header .right { margin-left:auto; display:flex; gap:8px; align-items:center; font-size:12px; }
+  main { display:grid; grid-template-columns: 340px 1fr; gap:16px; padding:16px; max-width:1300px; margin:auto; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  label { display:block; font-size:13px; font-weight:600; margin:10px 0 4px; }
+  input, textarea, select { width:100%; padding:9px; border:1px solid var(--line); border-radius:7px; font:inherit; }
+  textarea { min-height:70px; }
+  button { cursor:pointer; border:0; border-radius:7px; padding:10px 14px; font-weight:600; font:inherit; }
+  .primary { background:var(--brand); color:#fff; width:100%; margin-top:14px; }
+  .ghost { background:#fff; color:var(--ink); border:1px solid var(--line); padding:6px 10px; }
+  .danger { background:#fee4e2; color:#b42318; padding:6px 10px; }
+  .msg { font-size:13px; margin-top:8px; }
+  .call { border:1px solid var(--line); border-radius:10px; margin-bottom:12px; background:#fff; }
+  .call.attn { border:2px solid #d92d20; }
+  .top { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 14px; }
+  .badge { font-size:12px; font-weight:700; padding:3px 9px; border-radius:99px; text-transform:uppercase; }
+  .s-scheduled{background:#eef4ff;color:#3538cd} .s-calling{background:#fef0c7;color:#b54708}
+  .s-confirmed{background:#dcfae6;color:#067647} .s-rescheduled{background:#e0f2fe;color:#026aa2}
+  .s-retrying{background:#fdead7;color:#c4320a} .s-needs_attention{background:#d92d20;color:#fff}
+  .s-unreachable{background:#e4e7ec;color:#344054}
+  .p-critical{background:#fee4e2;color:#b42318} .p-high{background:#fef0c7;color:#b54708} .p-normal{background:#f2f4f7;color:#475467}
+  .summary { padding:0 14px 10px; font-size:14px; }
+  .summary.attn { color:#b42318; font-weight:700; }
+  .meta { color:var(--muted); font-size:12px; }
+  details { border-top:1px solid var(--line); padding:8px 14px; }
+  summary { cursor:pointer; font-size:13px; color:var(--muted); }
+  .line { display:flex; gap:8px; font-size:13px; padding:3px 0; }
+  .tag { font-size:10px; font-weight:800; min-width:84px; text-align:center; padding:2px 6px; border-radius:5px; height:fit-content; }
+  .a-PLANNER{background:#ede9fe;color:#5b21b6} .a-LISTENER{background:#dbeafe;color:#1e40af}
+  .a-GUARDIAN{background:#fef3c7;color:#92400e} .a-REPORTER{background:#dcfce7;color:#166534}
+  .a-SCHEDULER{background:#f1f5f9;color:#334155} .a-TWILIO{background:#fce7f3;color:#9d174d}
+  .a-PERSON{background:#e0f2fe;color:#075985} .a-CARECALL{background:#ccfbf1;color:#115e59} .a-SYSTEM{background:#fee2e2;color:#991b1b}
+  .time { color:var(--muted); font-size:11px; min-width:58px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CareCall</h1><span class="sub">Multi-agent reminder calls · Team Carpe Diem (Ah-11)</span>
+  <div class="right"><span id="health">checking…</span><button class="danger" onclick="resetAll()">Reset demo</button></div>
+</header>
+<main>
+  <section class="card">
+    <h2 style="margin:0 0 4px;font-size:17px">Schedule a call</h2>
+    <form id="f">
+      <label>Phone number (international)</label>
+      <input name="phone" placeholder="+919876543210" required>
+      <label>Message to speak</label>
+      <textarea name="message" placeholder="Please take your blood pressure tablet after breakfast." required></textarea>
+      <label>Note for questions (optional)</label>
+      <textarea name="note" placeholder="Blue tablet, the box is on the kitchen shelf. Take it with water."></textarea>
+      <label>Your name (optional)</label>
+      <input name="sender_name" placeholder="Ravi">
+      <label>Date and time</label>
+      <input name="when" type="datetime-local" required>
+      <label>Language</label>
+      <select name="language"><option value="en">English</option><option value="hi">Hindi</option><option value="kn">Kannada</option></select>
+      <button class="primary" type="submit">Schedule call</button>
+      <div class="msg" id="formMsg"></div>
+    </form>
+  </section>
+  <section>
+    <div id="list"><div class="card meta">No calls yet.</div></div>
+  </section>
+</main>
+<script>
+const API = "";  // same origin as FastAPI
+const H = { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" };
+const STATUS_LABEL = { needs_attention: "needs attention" };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const t = iso => iso ? new Date(iso).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit", second:"2-digit" }) : "";
+
+function defaultWhen() {
+  const d = new Date(Date.now() + 60_000); d.setSeconds(0, 0);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+document.querySelector("[name=when]").value = defaultWhen();
+
+document.getElementById("f").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target), msg = document.getElementById("formMsg");
+  msg.textContent = "Planner agent is thinking…";
+  try {
+    const r = await fetch(API + "/api/calls", { method: "POST", headers: H, body: JSON.stringify({
+      phone: fd.get("phone"), message: fd.get("message"), note: fd.get("note"),
+      sender_name: fd.get("sender_name"), language: fd.get("language"),
+      scheduled_at: new Date(fd.get("when")).toISOString() }) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || r.status);
+    msg.textContent = `Scheduled. Priority: ${data.priority}.`;
+    document.querySelector("[name=when]").value = defaultWhen();
+    load();
+  } catch (err) { msg.textContent = "Error: " + err.message; }
+});
+
+async function resetAll() {
+  if (!confirm("Delete all calls?")) return;
+  await fetch(API + "/api/calls", { method: "DELETE", headers: H }); load();
+}
+async function callNow(id) { await fetch(API + `/api/calls/${id}/call-now`, { method: "POST", headers: H }); load(); }
+
+const openIds = new Set();
+function render(calls) {
+  const list = document.getElementById("list");
+  list.querySelectorAll("details[open]").forEach(d => openIds.add(d.dataset.id));
+  list.querySelectorAll("details:not([open])").forEach(d => openIds.delete(d.dataset.id));
+  if (!calls.length) { list.innerHTML = '<div class="card meta">No calls yet.</div>'; return; }
+  list.innerHTML = calls.map(c => {
+    const attn = c.status === "needs_attention";
+    return `<div class="call ${attn ? "attn" : ""}">
+      <div class="top">
+        <span class="badge s-${c.status}">${esc(STATUS_LABEL[c.status] || c.status)}</span>
+        <span class="badge p-${c.priority}">${esc(c.priority)}</span>
+        <b>${esc(c.phone)}</b>
+        <span class="meta">${esc(c.language.toUpperCase())} · ${new Date(c.scheduled_at).toLocaleString()} · attempts ${c.attempts}/${c.max_attempts}+</span>
+        <button class="ghost" style="margin-left:auto" onclick="callNow('${c.id}')">Call now</button>
+      </div>
+      <div class="summary meta">“${esc(c.message)}”</div>
+      ${c.summary ? `<div class="summary ${attn ? "attn" : ""}">Reporter: ${esc(c.summary)}</div>` : ""}
+      <details data-id="${c.id}" ${openIds.has(c.id) ? "open" : ""}>
+        <summary>Transcript (${c.events.length} lines)</summary>
+        ${c.events.map(e => `<div class="line"><span class="time">${t(e.created_at)}</span>
+          <span class="tag a-${e.agent}">${esc(e.agent)}</span><span>${esc(e.text)}</span></div>`).join("")}
+      </details></div>`;
+  }).join("");
+}
+
+async function load() {
+  try {
+    const r = await fetch(API + "/api/calls", { headers: H });
+    render(await r.json());
+  } catch (e) { /* backend restarting; try again next tick */ }
+}
+async function health() {
+  try {
+    const h = await (await fetch(API + "/api/health", { headers: H })).json();
+    document.getElementById("health").textContent =
+      `${h.dry_run ? "DRY RUN" : "LIVE CALLS"} · db ${h.db} · llm ${h.llm}${h.demo_mode ? " · demo mode" : ""}`;
+  } catch { document.getElementById("health").textContent = "backend offline"; }
+}
+load(); health(); setInterval(load, 2000); setInterval(health, 10000);
+</script>
+</body>
+</html>
