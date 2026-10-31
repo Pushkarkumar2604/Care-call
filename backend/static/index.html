@@ -1,305 +1,898 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CareCall - AI Check-in Service</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareCall - Reminder Dashboard</title>
+
 <style>
-  :root { --bg:#f8fafc; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#0f766e; --brand-light:#ccfbf1; --btn-call:#10b981; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--ink); }
-  header { background:var(--brand); color:#fff; padding:16px 24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
-  header h1 { margin:0; font-size:22px; font-weight:800; letter-spacing:-0.5px; }
-  header .sub { opacity:.9; font-size:13px; }
-  header .right { margin-left:auto; display:flex; gap:12px; align-items:center; font-size:13px; }
-  .grid { display:grid; grid-template-columns: 380px 1fr; gap:20px; padding:20px; max-width:1400px; margin:auto; }
-  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
-  h2 { margin:0 0 12px; font-size:16px; font-weight:700; color:var(--ink); display:flex; align-items:center; justify-content:space-between; }
-  label { display:block; font-size:12px; font-weight:700; text-transform:uppercase; color:var(--muted); margin:10px 0 4px; }
-  input, textarea, select { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:14px; background:#fff; }
-  textarea { min-height:60px; resize:vertical; }
-  button { cursor:pointer; border:0; border-radius:8px; padding:10px 16px; font-weight:600; font:inherit; transition:opacity 0.15s; }
-  button:hover { opacity:0.9; }
-  .primary { background:var(--brand); color:#fff; width:100%; margin-top:14px; }
-  .call-btn { background:#059669; color:#fff; width:100%; margin-top:12px; font-size:15px; padding:12px; font-weight:700; border-radius:8px; }
-  .call-sm-btn { background:#059669; color:#fff; font-size:12px; padding:6px 12px; font-weight:700; border-radius:6px; }
-  .ghost { background:#f1f5f9; color:#334155; padding:6px 12px; font-size:13px; border-radius:6px; }
-  .danger { background:#fee2e2; color:#b91c1c; font-size:12px; padding:6px 12px; }
-  .badge { font-size:11px; font-weight:800; padding:3px 8px; border-radius:99px; text-transform:uppercase; display:inline-block; }
-  .sev-high { background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; }
-  .sev-medium { background:#fef3c7; color:#b45309; border:1px solid #fde68a; }
-  .sev-low { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
-  .s-calling { background:#fef3c7; color:#b45309; }
-  .s-confirmed { background:#dcfce7; color:#166534; }
-  .s-needs_attention { background:#fee2e2; color:#b91c1c; }
-  .alert-card { border-left:4px solid #b91c1c; background:#fff; padding:12px 16px; border-radius:8px; margin-bottom:10px; border:1px solid var(--line); border-left-width:4px; }
-  .alert-card.high { border-left-color:#dc2626; }
-  .alert-card.medium { border-left-color:#f59e0b; }
-  .alert-card.low { border-left-color:#3b82f6; }
-  .contact-item { padding:14px; border:1px solid var(--line); border-radius:10px; margin-bottom:12px; background:#fff; }
-  .contact-top { display:flex; justify-content:space-between; align-items:center; }
-  .meta { color:var(--muted); font-size:13px; }
-  .tag { font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px; }
-  .section-tab { display:flex; gap:8px; border-bottom:1px solid var(--line); margin-bottom:16px; padding-bottom:8px; }
-  .tab-btn { background:none; color:var(--muted); border:0; padding:8px 14px; font-weight:700; font-size:14px; border-radius:6px; }
-  .tab-btn.active { background:var(--brand-light); color:var(--brand); }
-  .call-banner { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; padding:12px; border-radius:8px; margin-top:10px; font-size:13px; }
+:root {
+  --bg: #f5f7fb;
+  --white: #ffffff;
+  --text: #182230;
+  --muted: #667085;
+  --border: #e7ebf2;
+  --blue: #4567e8;
+  --green: #16794b;
+  --red: #b42318;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 5%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+
+.brand {
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--blue);
+}
+
+.brand small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 2px;
+}
+
+.mode {
+  background: #e9f8ef;
+  color: var(--green);
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.container {
+  max-width: 1250px;
+  margin: auto;
+  padding: 30px 20px;
+}
+
+.intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.intro h1 {
+  margin-bottom: 6px;
+}
+
+.intro p {
+  color: var(--muted);
+  margin-top: 0;
+}
+
+button {
+  border: none;
+  border-radius: 9px;
+  padding: 11px 15px;
+  font-weight: bold;
+}
+
+.primary {
+  background: var(--blue);
+  color: white;
+}
+
+.secondary {
+  background: white;
+  border: 1px solid var(--border);
+}
+
+.alert {
+  display: none;
+  padding: 14px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+}
+
+.alert.show {
+  display: block;
+}
+
+.alert.ok {
+  background: #e9f8ef;
+  color: var(--green);
+}
+
+.alert.err {
+  background: #fff0ee;
+  color: var(--red);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  margin-bottom: 22px;
+}
+
+.stat, .panel {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 5px 20px #18223008;
+}
+
+.stat {
+  padding: 20px;
+}
+
+.stat span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stat strong {
+  display: block;
+  font-size: 30px;
+  margin-top: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.panel {
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.panel-body {
+  padding: 20px;
+}
+
+.search {
+  width: 170px;
+  max-width: 100%;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th {
+  background: #fafbfc;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 13px;
+}
+
+td {
+  padding: 14px 13px;
+  border-top: 1px solid #f0f2f6;
+  font-size: 13px;
+  vertical-align: top;
+}
+
+.message {
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+
+.small {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.badge {
+  display: inline-block;
+  padding: 5px 8px;
+  border-radius: 20px;
+  background: #eef1f6;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.confirmed {
+  background: #e9f8ef;
+  color: var(--green);
+}
+
+.scheduled, .rescheduled, .retrying {
+  background: #edf1ff;
+  color: #4058c7;
+}
+
+.calling {
+  background: #fff4dd;
+  color: #8a5b00;
+}
+
+.failed, .needs_attention {
+  background: #fff0ee;
+  color: var(--red);
+}
+
+.empty {
+  text-align: center;
+  padding: 28px;
+  color: var(--muted);
+}
+
+.field {
+  margin-bottom: 15px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 7px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 11px;
+  border: 1px solid #dfe4ed;
+  border-radius: 9px;
+  background: white;
+}
+
+.field textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.submit {
+  width: 100%;
+  padding: 13px;
+}
+
+.submit:disabled {
+  opacity: 0.6;
+}
+
+.safe-note {
+  margin-top: 15px;
+  background: #e9f8ef;
+  color: var(--green);
+  padding: 12px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.health {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+footer {
+  text-align: center;
+  color: #98a2b3;
+  font-size: 12px;
+  padding: 25px;
+}
+
+@media(max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media(max-width: 550px) {
+  .intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .two {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stats {
+    gap: 8px;
+  }
+
+  .stat {
+    padding: 13px;
+  }
+
+  .stat strong {
+    font-size: 25px;
+  }
+}
 </style>
 </head>
+
 <body>
+
 <header>
-  <div>
-    <h1>CareCall</h1>
-    <div class="sub">General-Purpose AI Check-in Call Service · Team Carpe Diem</div>
+  <div class="brand">
+    ✚ CareCall
+    <small>CARE, ON TIME</small>
   </div>
-  <div class="right">
-    <span id="health">Connecting...</span>
-    <button class="danger" onclick="resetAll()">Reset Demo</button>
-  </div>
+
+  <div class="mode">DEMO · DRY RUN</div>
 </header>
 
-<div class="grid">
-  <!-- Left Column: Place Call & Add Contact -->
-  <div>
-    <!-- Call Now Form -->
-    <div class="card" style="border:2px solid #059669;">
-      <h2>📞 Place Check-in Call</h2>
-      <p class="meta" style="margin-top:0;">Phone rings immediately. AI speaks the reminder and listens to the reply.</p>
-      <form id="callNowForm">
-        <label>Phone Number to Call</label>
-        <input id="callPhone" name="phone" placeholder="+918147581686" value="+918147581686" required>
-        <label>Contact Name</label>
-        <input id="callName" name="name" placeholder="sritej" value="sritej" required>
-        <label>Spoken Reminder Message</label>
-        <textarea id="callMessage" name="message" placeholder="Take your BP tablets after breakfast and drink some water">Take your BP tablets after breakfast and drink some water</textarea>
-        <button class="call-btn" type="submit">📞 Call Phone Now</button>
-        <div id="callStatusBanner" style="display:none;" class="call-banner"></div>
-      </form>
+<main class="container">
+
+  <section class="intro">
+    <div>
+      <h1>Reminder Dashboard</h1>
+      <p>Manage scheduled reminders and monitor their status.</p>
     </div>
 
-    <!-- Add Contact Form -->
-    <div class="card">
-      <h2>Add / Save Contact</h2>
-      <form id="contactForm">
-        <label>Full Name</label>
-        <input name="name" placeholder="sritej" value="sritej" required>
-        <label>Phone Number (International)</label>
-        <input name="phone" placeholder="+918147581686" value="+918147581686" required>
-        <label>Daily Reminders (Tasks / Medicine)</label>
-        <textarea name="reminders" placeholder="Take BP tablets after breakfast">Take BP tablets after breakfast</textarea>
-        <label>Caregiver Notes</label>
-        <textarea name="notes" placeholder="Enjoys watching sunrise">Enjoys watching sunrise</textarea>
-        <button class="primary" type="submit">Save Contact</button>
-        <div id="contactMsg" class="meta" style="margin-top:8px"></div>
-      </form>
-    </div>
-  </div>
+    <button class="primary" id="jumpForm">
+      + Create Reminder
+    </button>
+  </section>
 
-  <!-- Right Column: Caregiver Dashboard (Alerts, Contacts, Results) -->
-  <div>
-    <div class="section-tab">
-      <button class="tab-btn active" onclick="switchTab('contacts', event)">Contacts Directory</button>
-      <button class="tab-btn" onclick="switchTab('calls', event)">Active Calls & Transcripts</button>
-      <button class="tab-btn" onclick="switchTab('alerts', event)">Caregiver Alerts <span id="alertsCount" class="badge sev-high">0</span></button>
+  <div class="alert" id="alert" role="status"></div>
+
+  <section class="stats">
+    <div class="stat">
+      <span>Total Reminders</span>
+      <strong id="total">—</strong>
     </div>
 
-    <!-- Contacts View -->
-    <div id="contactsView">
-      <div class="card">
-        <h2>Managed Contacts</h2>
-        <div id="contactsList" class="meta">Loading contacts...</div>
+    <div class="stat">
+      <span>Scheduled</span>
+      <strong id="scheduled">—</strong>
+    </div>
+
+    <div class="stat">
+      <span>Confirmed</span>
+      <strong id="confirmed">—</strong>
+    </div>
+
+    <div class="stat">
+      <span>Needs Attention</span>
+      <strong id="attention">—</strong>
+    </div>
+  </section>
+
+  <section class="grid">
+
+    <div class="panel">
+
+      <div class="panel-header">
+        <div>
+          <h2>Recent Reminders</h2>
+          <div class="small">Data from your CareCall backend</div>
+        </div>
+
+        <div>
+          <input
+            class="search"
+            id="search"
+            placeholder="Search reminders..."
+            aria-label="Search reminders"
+          >
+
+          <button class="secondary" id="refresh">↻</button>
+        </div>
       </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Reminder</th>
+              <th>Status</th>
+              <th>Scheduled</th>
+            </tr>
+          </thead>
+
+          <tbody id="callsBody">
+            <tr>
+              <td colspan="3">
+                <div class="empty">Loading reminders...</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-body">
+        <div class="small" id="listInfo">Loading...</div>
+        <p class="health" id="healthText">Checking backend...</p>
+      </div>
+
     </div>
 
-    <!-- Active Calls & Transcripts View -->
-    <div id="callsView" style="display:none;">
-      <div class="card">
-        <h2>Live Call Transcripts & History</h2>
-        <div id="callsList" class="meta">No active calls.</div>
-      </div>
-    </div>
+    <aside class="panel" id="formPanel">
 
-    <!-- Alerts View -->
-    <div id="alertsView" style="display:none;">
-      <div class="card">
-        <h2>Active Caregiver Alerts</h2>
-        <div id="alertsList" class="meta">No alerts triggered. Everything normal.</div>
+      <div class="panel-header">
+        <h2>Create a Reminder</h2>
       </div>
-    </div>
-  </div>
-</div>
+
+      <div class="panel-body">
+
+        <form id="callForm">
+
+          <div class="field">
+            <label for="phone">Phone Number *</label>
+
+            <input
+              id="phone"
+              type="tel"
+              placeholder="+919876543210"
+              value="+919999999999"
+              required
+              pattern="^\+?[0-9\s()\-]{8,20}$"
+            >
+
+            <div class="small">
+              Include the country code, for example +91.
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="message">Reminder Message *</label>
+
+            <textarea
+              id="message"
+              required
+              maxlength="1000"
+            >Test medicine reminder. Please confirm that you have taken your medicine.</textarea>
+          </div>
+
+          <div class="two">
+
+            <div class="field">
+              <label for="language">Language</label>
+
+              <select id="language">
+                <option value="en">English</option>
+                <option value="hi">Hindi</option>
+                <option value="kn">Kannada</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="scheduledAt">Date and Time *</label>
+
+              <input
+                id="scheduledAt"
+                type="datetime-local"
+                required
+              >
+            </div>
+
+          </div>
+
+          <div class="field">
+            <label for="sender">Sender / Family Name</label>
+
+            <input
+              id="sender"
+              placeholder="e.g. Ananya"
+            >
+          </div>
+
+          <div class="field">
+            <label for="note">Extra Note (Optional)</label>
+
+            <input
+              id="note"
+              placeholder="Any helpful context"
+            >
+          </div>
+
+          <button
+            class="primary submit"
+            id="submitBtn"
+            type="submit"
+          >
+            + Save Reminder
+          </button>
+
+        </form>
+
+        <div class="safe-note">
+          <b>Safety:</b>
+          This dashboard is for demo and dry-run testing.
+          Keep real calls disabled.
+        </div>
+
+      </div>
+    </aside>
+
+  </section>
+
+</main>
+
+<footer>
+  CareCall · Built for timely, thoughtful reminders · Demo Mode
+</footer>
 
 <script>
 const API = "";
-const H = { "Content-Type": "application/json" };
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+let allCalls = [];
 
-function switchTab(tab, evt) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('alertsView').style.display = tab === 'alerts' ? 'block' : 'none';
-  document.getElementById('contactsView').style.display = tab === 'contacts' ? 'block' : 'none';
-  document.getElementById('callsView').style.display = tab === 'calls' ? 'block' : 'none';
-  if (evt && evt.target) evt.target.classList.add('active');
+const $ = id => document.getElementById(id);
+
+function showAlert(message, type = "ok") {
+  const box = $("alert");
+
+  box.textContent = message;
+  box.className = `alert show ${type}`;
+
+  clearTimeout(showAlert.timer);
+
+  showAlert.timer = setTimeout(() => {
+    box.classList.remove("show");
+  }, 6000);
 }
 
-// Call Now Form handler
-document.getElementById('callNowForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const banner = document.getElementById('callStatusBanner');
-  banner.style.display = 'block';
-  banner.innerHTML = "<b>Connecting to Twilio...</b> Dialing phone now...";
+function safe(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[c]));
+}
 
-  const phone = document.getElementById('callPhone').value.trim();
-  const name = document.getElementById('callName').value.trim();
-  const message = document.getElementById('callMessage').value.trim();
+function prettyStatus(status) {
+  return String(status || "unknown")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function formatDate(value) {
+  if (!value) return "Not scheduled";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return safe(value);
+  }
+
+  return date.toLocaleString([], {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function renderCalls() {
+  const query = $("search").value.trim().toLowerCase();
+
+  const filtered = allCalls.filter(call => [
+    call.message,
+    call.phone,
+    call.status,
+    call.language
+  ].some(value => String(value || "").toLowerCase().includes(query)));
+
+  $("total").textContent = allCalls.length;
+
+  $("scheduled").textContent = allCalls.filter(call =>
+    ["scheduled", "rescheduled", "retrying"].includes(call.status)
+  ).length;
+
+  $("confirmed").textContent = allCalls.filter(call =>
+    call.status === "confirmed"
+  ).length;
+
+  $("attention").textContent = allCalls.filter(call =>
+    call.status === "needs_attention"
+  ).length;
+
+  $("listInfo").textContent =
+    `Showing ${filtered.length} of ${allCalls.length} reminders`;
+
+  const body = $("callsBody");
+
+  if (!filtered.length) {
+    body.innerHTML = `
+      <tr>
+        <td colspan="3">
+          <div class="empty">
+            <b>${allCalls.length ? "No matching reminders" : "No reminders yet"}</b>
+          </div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  body.innerHTML = filtered.map(call => {
+    const status = String(call.status || "unknown");
+    const allowed = [
+      "confirmed",
+      "scheduled",
+      "rescheduled",
+      "retrying",
+      "calling",
+      "needs_attention",
+      "failed"
+    ];
+
+    const statusClass = allowed.includes(status) ? status : "";
+
+    return `
+      <tr>
+        <td>
+          <div class="message">
+            ${safe(call.message || "Untitled reminder")}
+          </div>
+
+          <div class="small">
+            ${safe(call.phone || "No phone")} ·
+            ${safe((call.language || "en").toUpperCase())}
+          </div>
+        </td>
+
+        <td>
+          <span class="badge ${statusClass}">
+            ${safe(prettyStatus(status))}
+          </span>
+
+          <div class="small">
+            Attempts: ${Number(call.attempts || 0)}
+            · Failed: ${Number(call.failed_attempts || 0)}
+          </div>
+        </td>
+
+        <td>${safe(formatDate(call.scheduled_at))}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function loadHealth() {
+  try {
+    const response = await fetch("/api/health", {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error("Health check failed");
+    }
+
+    const health = await response.json();
+
+    $("healthText").textContent =
+      `Backend connected · Database: ${health.db || "unknown"} · AI: ${health.llm || "unknown"}`;
+
+    if (
+      health.dry_run === false ||
+      health.demo_mode === false
+    ) {
+      showAlert(
+        "Safety warning: Demo mode or dry-run mode is disabled. Do not test real calls.",
+        "err"
+      );
+    }
+
+  } catch (error) {
+    $("healthText").textContent = "Backend unavailable";
+  }
+}
+
+async function loadCalls() {
+  $("callsBody").innerHTML = `
+    <tr>
+      <td colspan="3">
+        <div class="empty">Loading reminders...</div>
+      </td>
+    </tr>
+  `;
 
   try {
-    const res = await fetch(API + "/api/calls/immediate", {
+    const response = await fetch("/api/calls", {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!Array.isArray(data)) {
+      throw new Error("Expected a list of reminders from the API.");
+    }
+
+    allCalls = data;
+
+    renderCalls();
+    await loadHealth();
+
+  } catch (error) {
+    $("callsBody").innerHTML = `
+      <tr>
+        <td colspan="3">
+          <div class="empty">
+            <b>Could not connect to CareCall</b>
+            <p>${safe(error.message)}</p>
+            Make sure your backend is running.
+          </div>
+        </td>
+      </tr>
+    `;
+
+    $("listInfo").textContent = "Connection error";
+    $("healthText").textContent = "Backend offline";
+  }
+}
+
+function setDefaultTime() {
+  const date = new Date(Date.now() + 10 * 60 * 1000);
+
+  date.setSeconds(0, 0);
+
+  const localDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60000
+  ).toISOString().slice(0, 16);
+
+  $("scheduledAt").value = localDate;
+}
+
+$("callForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const button = $("submitBtn");
+
+  const phone = $("phone").value.trim();
+  const message = $("message").value.trim();
+
+  if (!phone || !message) {
+    showAlert("Phone number and message are required.", "err");
+    return;
+  }
+
+  const selectedDate = new Date($("scheduledAt").value);
+
+  if (Number.isNaN(selectedDate.getTime())) {
+    showAlert("Please select a valid date and time.", "err");
+    return;
+  }
+
+  if (selectedDate.getTime() <= Date.now()) {
+    showAlert("Choose a future date and time.", "err");
+    return;
+  }
+
+  const payload = {
+    phone: phone,
+    message: message,
+    language: $("language").value,
+    scheduled_at: selectedDate.toISOString(),
+    note: $("note").value.trim(),
+    sender_name: $("sender").value.trim()
+  };
+
+  button.disabled = true;
+  button.textContent = "Saving reminder...";
+
+  try {
+    const response = await fetch("/api/calls", {
       method: "POST",
-      headers: H,
-      body: JSON.stringify({ phone, name, message })
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Call failed");
-    banner.innerHTML = `<b>📞 Phone is Ringing!</b> Call SID: <code>${data.twilio_sid}</code>. Answer your phone!`;
-    loadAll();
-  } catch (err) {
-    banner.style.background = "#fee2e2";
-    banner.style.color = "#b91c1c";
-    banner.innerHTML = `<b>Error:</b> ${esc(err.message)}`;
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        typeof result.detail === "string"
+          ? result.detail
+          : `Request failed: HTTP ${response.status}`
+      );
+    }
+
+    showAlert(
+      "Reminder saved! Check the reminder list below. Calls remain simulated in dry-run mode.",
+      "ok"
+    );
+
+    $("message").value = "";
+    $("note").value = "";
+
+    setDefaultTime();
+
+    await loadCalls();
+
+  } catch (error) {
+    showAlert(
+      `Could not save reminder: ${error.message}`,
+      "err"
+    );
+  } finally {
+    button.disabled = false;
+    button.textContent = "+ Save Reminder";
   }
 });
 
-// Quick call from contact list
-async function callContact(phone, message, name) {
-  document.getElementById('callPhone').value = phone;
-  document.getElementById('callName').value = name;
-  document.getElementById('callMessage').value = message || "Daily check-in call";
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  document.getElementById('callNowForm').dispatchEvent(new Event('submit'));
-}
+$("refresh").addEventListener("click", loadCalls);
 
-// Contact Form handler
-document.getElementById('contactForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const msg = document.getElementById('contactMsg');
-  msg.textContent = "Saving...";
-  try {
-    const res = await fetch(API + "/api/contacts", {
-      method: "POST", headers: H,
-      body: JSON.stringify({
-        name: fd.get("name"),
-        phone: fd.get("phone"),
-        secret_check: "1985",
-        reminders: fd.get("reminders"),
-        notes: fd.get("notes"),
-        caregiver_contact: fd.get("phone")
-      })
-    });
-    if (!res.ok) throw new Error("Failed to save");
-    msg.textContent = "Contact saved successfully!";
-    loadAll();
-  } catch (err) {
-    msg.textContent = "Error: " + err.message;
-  }
+$("search").addEventListener("input", renderCalls);
+
+$("jumpForm").addEventListener("click", () => {
+  $("formPanel").scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
 });
 
-async function resetAll() {
-  if (!confirm("Reset all calls and alerts for demo?")) return;
-  await fetch(API + "/api/calls", { method: "DELETE", headers: H });
-  loadAll();
-}
-
-async function loadAll() {
-  // Load Contacts
-  try {
-    const contacts = await (await fetch(API + "/api/contacts")).json();
-    const cList = document.getElementById('contactsList');
-    if (!contacts.length) {
-      cList.innerHTML = "No contacts saved yet.";
-    } else {
-      cList.innerHTML = contacts.map(c => `
-        <div class="contact-item">
-          <div class="contact-top">
-            <div><b>${esc(c.name)}</b> (${esc(c.phone)})</div>
-            <button class="call-sm-btn" onclick="callContact('${esc(c.phone)}', '${esc(c.reminders || '')}', '${esc(c.name)}')">📞 Call Now</button>
-          </div>
-          <div class="meta" style="margin-top:6px;"><b>Reminder:</b> ${esc(c.reminders || "None")}</div>
-          <div class="meta"><b>Notes:</b> ${esc(c.notes || "None")}</div>
-        </div>
-      `).join("");
-    }
-  } catch {}
-
-  // Load Alerts
-  try {
-    const alerts = await (await fetch(API + "/api/alerts")).json();
-    document.getElementById('alertsCount').textContent = alerts.length;
-    const aList = document.getElementById('alertsList');
-    if (!alerts.length) {
-      aList.innerHTML = "No alerts triggered. All check-ins healthy.";
-    } else {
-      aList.innerHTML = alerts.map(a => `
-        <div class="alert-card ${a.severity}">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span class="badge sev-${a.severity}">${a.severity.toUpperCase()} ALERT</span>
-            <span class="meta">${new Date(a.created_at).toLocaleTimeString()}</span>
-          </div>
-          <div style="font-weight:700;margin-top:6px;">${a.reasons.join(" · ")}</div>
-        </div>
-      `).join("");
-    }
-  } catch {}
-
-  // Load Calls & Transcripts
-  try {
-    const calls = await (await fetch(API + "/api/calls")).json();
-    const callList = document.getElementById('callsList');
-    if (!calls.length) {
-      callList.innerHTML = "No calls yet.";
-    } else {
-      callList.innerHTML = calls.map(c => `
-        <div class="contact-item">
-          <div class="contact-top">
-            <span class="badge s-${c.status}">${c.status.toUpperCase()}</span>
-            <b>${esc(c.sender_name || c.phone)} (${esc(c.phone)})</b>
-            <span class="meta">${new Date(c.created_at).toLocaleTimeString()}</span>
-          </div>
-          <div class="meta" style="margin-top:4px;">“${esc(c.message)}”</div>
-          ${c.twilio_sid ? `<div class="meta" style="font-size:11px;color:#059669;">Twilio SID: ${esc(c.twilio_sid)}</div>` : ""}
-          ${c.events && c.events.length ? `
-            <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);">
-              <div class="meta" style="font-weight:700;margin-bottom:4px;">Live Events (${c.events.length}):</div>
-              ${c.events.map(e => `
-                <div style="font-size:12px;padding:2px 0;">
-                  <span class="tag" style="background:#f1f5f9;font-weight:700;">${esc(e.agent)}</span>
-                  <span>${esc(e.text)}</span>
-                </div>
-              `).join("")}
-            </div>
-          ` : ""}
-        </div>
-      `).join("");
-    }
-  } catch {}
-}
-
-async function health() {
-  try {
-    const h = await (await fetch(API + "/api/health")).json();
-    document.getElementById('health').textContent =
-      `${h.dry_run ? "DRY RUN" : "LIVE"} · DB ${h.db} · LLM ${h.llm}`;
-  } catch {
-    document.getElementById('health').textContent = "Server Offline";
-  }
-}
-
-loadAll();
-health();
-setInterval(loadAll, 3000);
-setInterval(health, 10000);
+setDefaultTime();
+loadCalls();
 </script>
+
 </body>
 </html>

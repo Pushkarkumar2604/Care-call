@@ -1,188 +1,310 @@
-"""
-One tiny wrapper around the LLM. Every agent calls ask_json().
 
-- Works with Groq (LLM_PROVIDER=groq) or Claude (LLM_PROVIDER=claude).
-- Returns a dict parsed from JSON, or raises an exception.
-- Has a hard time limit so a slow LLM never freezes the phone call.
+"""
+CareCall LLM wrapper.
+
+Supports:
+- Groq
+- Anthropic Claude
+
+Features:
+- JSON response parsing
+- Request timeout handling
+- Consistent ask_json() interface
+- Error handling
+
+Keep DRY_RUN=true and DEMO_MODE=true while testing.
 """
 
 import json
 import re
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    TimeoutError as FutureTimeoutError,
+)
 
 import config
 
 
-_pool = ThreadPoolExecutor(max_workers=8)
+# Reuse worker threads for LLM requests.
+_pool = ThreadPoolExecutor(max_workers=4)
+
+# Cache the initialized LLM client.
 _client = None
 
 
+class LLMError(Exception):
+    """Base exception for LLM errors."""
+
+
+class LLMTimeoutError(LLMError):
+    """Raised when an LLM request exceeds its timeout."""
+
+
+class LLMResponseError(LLMError):
+    """Raised when the model response cannot be parsed as JSON."""
+
+
 def _get_client():
-    """Create the LLM client once and reuse it."""
+    """Create and cache the configured LLM client."""
     global _client
 
-    if _client is None:
-        if config.LLM_PROVIDER == "claude":
-            import anthropic
+    if _client is not None:
+        return _client
 
-            _client = anthropic.Anthropic(
-                api_key=config.ANTHROPIC_API_KEY,
-                timeout=10,
-                max_retries=0,
-            )
-        else:
+    provider = str(
+        getattr(config, "LLM_PROVIDER", "groq")
+    ).strip().lower()
+
+    if provider == "groq":
+        try:
             from groq import Groq
+        except ImportError as exc:
+            raise LLMError(
+                "Groq package is missing. Install it using "
+                "'py -m pip install groq'."
+            ) from exc
 
-            _client = Groq(
-                api_key=config.GROQ_API_KEY,
-                timeout=10,
-                max_retries=0,
-            )
+        api_key = getattr(config, "GROQ_API_KEY", None)
+
+        if not api_key:
+            raise LLMError("GROQ_API_KEY is not configured.")
+
+        _client = Groq(
+            api_key=api_key,
+            timeout=15.0,
+            max_retries=0,
+        )
+
+    elif provider == "claude":
+        try:
+            from anthropic import Anthropic
+        except ImportError as exc:
+            raise LLMError(
+                "Anthropic package is missing. Install it using "
+                "'py -m pip install anthropic'."
+            ) from exc
+
+        api_key = getattr(config, "ANTHROPIC_API_KEY", None)
+
+        if not api_key:
+            raise LLMError("ANTHROPIC_API_KEY is not configured.")
+
+        _client = Anthropic(
+            api_key=api_key,
+            timeout=15.0,
+            max_retries=0,
+        )
+
+    else:
+        raise LLMError(
+            f"Unsupported LLM provider: {provider!r}. "
+            "Use 'groq' or 'claude'."
+        )
 
     return _client
 
 
-def _parse(text: str) -> dict:
-    """Parse a JSON object, including one wrapped in Markdown code fences."""
-    if not isinstance(text, str) or not text.strip():
-        raise ValueError("LLM returned an empty response.")
+def _parse(text):
+    """Parse a JSON object or list from the model response."""
+    if text is None:
+        raise LLMResponseError("The model returned an empty response.")
 
-    text = text.strip()
+    text = str(text).strip()
 
-    # First, try parsing the entire response as JSON.
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            return data
-        raise ValueError("LLM response must be a JSON object.")
-    except json.JSONDecodeError:
-        pass
+    if not text:
+        raise LLMResponseError("The model returned an empty response.")
 
     # Remove Markdown code fences, if present.
-    cleaned = re.sub(
-        r"^\s*```(?:json)?\s*|\s*```\s*$",
+    text = re.sub(
+        r"^\s*```(?:json)?\s*",
         "",
         text,
         flags=re.IGNORECASE,
-    ).strip()
+    )
+    text = re.sub(r"\s*```\s*$", "", text)
 
+    # Try parsing the entire response first.
     try:
-        data = json.loads(cleaned)
-        if isinstance(data, dict):
-            return data
-        raise ValueError("LLM response must be a JSON object.")
+        result = json.loads(text)
+
+        if isinstance(result, (dict, list)):
+            return result
+
+        raise LLMResponseError(
+            "The JSON response must be an object or list."
+        )
+
     except json.JSONDecodeError:
         pass
 
-    # Find a JSON object inside additional surrounding text.
-    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    # Try extracting a JSON object if extra text surrounds it.
+    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
 
-    if not match:
-        raise ValueError(
-            f"LLM did not return valid JSON. Response starts with: {text[:120]}"
-        )
+    if match:
+        try:
+            result = json.loads(match.group(0))
 
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"LLM returned malformed JSON. Response starts with: {text[:120]}"
-        ) from exc
+            if isinstance(result, dict):
+                return result
 
-    if not isinstance(data, dict):
-        raise ValueError("LLM response must be a JSON object.")
+        except json.JSONDecodeError:
+            pass
 
-    return data
+    raise LLMResponseError(
+        "Could not parse the model response as JSON."
+    )
 
 
-def _call(system: str, user: str, max_tokens: int) -> dict:
-    """Make one request to the configured LLM provider."""
+def _call(system, user, max_tokens=300):
+    """Send a request to the configured LLM provider."""
     client = _get_client()
 
-    if config.LLM_PROVIDER == "claude":
-        response = client.messages.create(
-            model=config.CLAUDE_MODEL,
-            max_tokens=max_tokens,
+    provider = str(
+        getattr(config, "LLM_PROVIDER", "groq")
+    ).strip().lower()
+
+    if provider == "groq":
+        model = getattr(config, "GROQ_MODEL", None)
+    else:
+        model = getattr(config, "CLAUDE_MODEL", None)
+
+    if not model:
+        raise LLMError(
+            f"No model configured for provider {provider!r}."
+        )
+
+    system_prompt = (
+        str(system).strip()
+        + "\n\n"
+        "Return exactly one valid JSON object. "
+        "Do not include Markdown fences or explanatory text. "
+        "Use valid JSON syntax."
+    )
+
+    user_prompt = str(user).strip()
+
+    if provider == "groq":
+        response = client.chat.completions.create(
+            model=model,
             temperature=0,
-            system=(
-                system
-                + "\nReply with one valid JSON object only. "
-                "Do not include Markdown or any other text."
-            ),
+            max_tokens=max(max_tokens, 512),
+            response_format={"type": "json_object"},
+            include_reasoning=False,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt,
+                },
+            ],
+        )
+
+        response_text = response.choices[0].message.content
+
+        if not response_text:
+            raise LLMResponseError(
+                "Groq returned an empty response."
+            )
+
+    elif provider == "claude":
+        response = client.messages.create(
+            model=model,
+            temperature=0,
+            max_tokens=max_tokens,
+            system=system_prompt,
             messages=[
                 {
                     "role": "user",
-                    "content": user,
+                    "content": user_prompt,
                 }
             ],
         )
 
-        # Collect text blocks safely.
         response_text = "".join(
             block.text
             for block in response.content
             if getattr(block, "type", None) == "text"
         )
 
-        return _parse(response_text)
+        if not response_text:
+            raise LLMResponseError(
+                "Claude returned an empty response."
+            )
 
-    response = client.chat.completions.create(
-        model=config.GROQ_MODEL,
-        temperature=0,
-        max_tokens=max_tokens,
-        response_format={"type": "json_object"},
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    system
-                    + "\nReply with one valid JSON object only. "
-                    "Do not include Markdown or any other text."
-                ),
-            },
-            {
-                "role": "user",
-                "content": user,
-            },
-        ],
-    )
-
-    response_text = response.choices[0].message.content
+    else:
+        raise LLMError(
+            f"Unsupported LLM provider: {provider!r}."
+        )
 
     return _parse(response_text)
 
 
-def ask_json(
-    system: str,
-    user: str,
-    max_tokens: int = 150,
-    timeout: float | None = None,
-) -> dict:
+def ask_json(system, user, max_tokens=300, timeout=None):
     """
-    Run the LLM with a deadline.
+    Public interface used by CareCall's Planner and Listener.
 
-    Raises an exception if configuration, the provider request, parsing,
-    or the timeout fails. Calling agents can then use their fallback logic.
+    Args:
+        system: Instructions for the model.
+        user: User prompt or task data.
+        max_tokens: Requested maximum completion tokens.
+        timeout: Optional timeout in seconds.
+
+    Returns:
+        A Python dictionary or list.
+
+    Raises:
+        LLMTimeoutError: If the request exceeds its timeout.
+        LLMResponseError: If the response is not valid JSON.
+        LLMError: If the request or configuration fails.
     """
-    if config.LLM_PROVIDER == "claude":
-        if not config.ANTHROPIC_API_KEY:
-            raise RuntimeError("ANTHROPIC_API_KEY missing")
-        if not config.CLAUDE_MODEL:
-            raise RuntimeError("CLAUDE_MODEL missing")
-    else:
-        if not config.GROQ_API_KEY:
-            raise RuntimeError("GROQ_API_KEY missing")
-        if not config.GROQ_MODEL:
-            raise RuntimeError("GROQ_MODEL missing")
+    request_timeout = (
+        timeout
+        if timeout is not None
+        else getattr(config, "LLM_TIMEOUT", 10)
+    )
 
-    request_timeout = timeout or config.LLM_TIMEOUT
+    try:
+        request_timeout = float(request_timeout)
+    except (TypeError, ValueError) as exc:
+        raise LLMError(
+            "LLM_TIMEOUT must be a number."
+        ) from exc
 
-    future = _pool.submit(_call, system, user, max_tokens)
+    if request_timeout <= 0:
+        raise LLMError(
+            "The LLM timeout must be greater than zero."
+        )
+
+    if not isinstance(max_tokens, int) or max_tokens <= 0:
+        raise LLMError(
+            "max_tokens must be a positive integer."
+        )
+
+    future = _pool.submit(
+        _call,
+        system,
+        user,
+        max_tokens,
+    )
 
     try:
         return future.result(timeout=request_timeout)
+
     except FutureTimeoutError as exc:
         future.cancel()
-        raise TimeoutError(
-            f"LLM request exceeded the {request_timeout}-second deadline."
+
+        raise LLMTimeoutError(
+            f"LLM request exceeded the "
+            f"{request_timeout:g}-second timeout."
+        ) from exc
+
+    except LLMError:
+        raise
+
+    except Exception as exc:
+        raise LLMError(
+            f"LLM request failed ({type(exc).__name__}): {exc}"
         ) from exc
