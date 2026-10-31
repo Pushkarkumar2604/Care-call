@@ -1,898 +1,396 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CareCall - Reminder Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f8fc">
+  <title>CareCall — Autonomous AI Check-in & Caregiver Hub</title>
 
-<style>
-:root {
-  --bg: #f5f7fb;
-  --white: #ffffff;
-  --text: #182230;
-  --muted: #667085;
-  --border: #e7ebf2;
-  --blue: #4567e8;
-  --green: #16794b;
-  --red: #b42318;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-}
-
-button, input, select, textarea {
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-header {
-  background: var(--white);
-  border-bottom: 1px solid var(--border);
-  padding: 18px 5%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 15px;
-}
-
-.brand {
-  font-size: 24px;
-  font-weight: bold;
-  color: var(--blue);
-}
-
-.brand small {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
-  letter-spacing: 2px;
-}
-
-.mode {
-  background: #e9f8ef;
-  color: var(--green);
-  padding: 8px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.container {
-  max-width: 1250px;
-  margin: auto;
-  padding: 30px 20px;
-}
-
-.intro {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 15px;
-  margin-bottom: 25px;
-}
-
-.intro h1 {
-  margin-bottom: 6px;
-}
-
-.intro p {
-  color: var(--muted);
-  margin-top: 0;
-}
-
-button {
-  border: none;
-  border-radius: 9px;
-  padding: 11px 15px;
-  font-weight: bold;
-}
-
-.primary {
-  background: var(--blue);
-  color: white;
-}
-
-.secondary {
-  background: white;
-  border: 1px solid var(--border);
-}
-
-.alert {
-  display: none;
-  padding: 14px;
-  border-radius: 10px;
-  margin-bottom: 18px;
-}
-
-.alert.show {
-  display: block;
-}
-
-.alert.ok {
-  background: #e9f8ef;
-  color: var(--green);
-}
-
-.alert.err {
-  background: #fff0ee;
-  color: var(--red);
-}
-
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 15px;
-  margin-bottom: 22px;
-}
-
-.stat, .panel {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 5px 20px #18223008;
-}
-
-.stat {
-  padding: 20px;
-}
-
-.stat span {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.stat strong {
-  display: block;
-  font-size: 30px;
-  margin-top: 12px;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  gap: 20px;
-  align-items: start;
-}
-
-.panel {
-  overflow: hidden;
-}
-
-.panel-header {
-  padding: 18px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.panel-header h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.panel-body {
-  padding: 20px;
-}
-
-.search {
-  width: 170px;
-  max-width: 100%;
-  padding: 9px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.table-wrap {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-th {
-  background: #fafbfc;
-  color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  padding: 13px;
-}
-
-td {
-  padding: 14px 13px;
-  border-top: 1px solid #f0f2f6;
-  font-size: 13px;
-  vertical-align: top;
-}
-
-.message {
-  font-weight: bold;
-  overflow-wrap: anywhere;
-}
-
-.small {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 5px;
-  overflow-wrap: anywhere;
-}
-
-.badge {
-  display: inline-block;
-  padding: 5px 8px;
-  border-radius: 20px;
-  background: #eef1f6;
-  font-size: 11px;
-  font-weight: bold;
-}
-
-.confirmed {
-  background: #e9f8ef;
-  color: var(--green);
-}
-
-.scheduled, .rescheduled, .retrying {
-  background: #edf1ff;
-  color: #4058c7;
-}
-
-.calling {
-  background: #fff4dd;
-  color: #8a5b00;
-}
-
-.failed, .needs_attention {
-  background: #fff0ee;
-  color: var(--red);
-}
-
-.empty {
-  text-align: center;
-  padding: 28px;
-  color: var(--muted);
-}
-
-.field {
-  margin-bottom: 15px;
-}
-
-.field label {
-  display: block;
-  font-size: 12px;
-  font-weight: bold;
-  margin-bottom: 7px;
-}
-
-.field input,
-.field select,
-.field textarea {
-  width: 100%;
-  padding: 11px;
-  border: 1px solid #dfe4ed;
-  border-radius: 9px;
-  background: white;
-}
-
-.field textarea {
-  min-height: 90px;
-  resize: vertical;
-}
-
-.two {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.submit {
-  width: 100%;
-  padding: 13px;
-}
-
-.submit:disabled {
-  opacity: 0.6;
-}
-
-.safe-note {
-  margin-top: 15px;
-  background: #e9f8ef;
-  color: var(--green);
-  padding: 12px;
-  border-radius: 9px;
-  font-size: 12px;
-}
-
-.health {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-footer {
-  text-align: center;
-  color: #98a2b3;
-  font-size: 12px;
-  padding: 25px;
-}
-
-@media(max-width: 900px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media(max-width: 550px) {
-  .intro {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .two {
-    grid-template-columns: 1fr;
-  }
-
-  .panel-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .stats {
-    gap: 8px;
-  }
-
-  .stat {
-    padding: 13px;
-  }
-
-  .stat strong {
-    font-size: 25px;
-  }
-}
-</style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
 </head>
-
 <body>
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#dashboard" aria-label="CareCall home">
+        <span class="brand-mark">✳</span>
+        <span>carecall<span class="brand-dot">.</span></span>
+      </a>
 
-<header>
-  <div class="brand">
-    ✚ CareCall
-    <small>CARE, ON TIME</small>
-  </div>
+      <div class="workspace-label">WORKSPACE</div>
 
-  <div class="mode">DEMO · DRY RUN</div>
-</header>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a class="nav-link active" href="#dashboard" data-page="dashboard">
+          <span class="nav-icon">⌂</span>Dashboard
+        </a>
+        <a class="nav-link" href="#reminders" data-page="reminders">
+          <span class="nav-icon">◷</span>Reminders
+          <span class="nav-count" id="nav-reminders-count">0</span>
+        </a>
+        <a class="nav-link" href="#contacts" data-page="contacts">
+          <span class="nav-icon">♧</span>Contacts
+          <span class="nav-count" id="nav-contacts-count">0</span>
+        </a>
+        <a class="nav-link" href="#call-logs" data-page="call-logs">
+          <span class="nav-icon">◉</span>Call logs
+        </a>
+        <a class="nav-link" href="#alerts" data-page="alerts">
+          <span class="nav-icon">🚨</span>Alerts
+          <span class="nav-count" id="nav-alerts-count" style="background:#fee2e2;color:#b91c1c;">0</span>
+        </a>
+      </nav>
 
-<main class="container">
-
-  <section class="intro">
-    <div>
-      <h1>Reminder Dashboard</h1>
-      <p>Manage scheduled reminders and monitor their status.</p>
-    </div>
-
-    <button class="primary" id="jumpForm">
-      + Create Reminder
-    </button>
-  </section>
-
-  <div class="alert" id="alert" role="status"></div>
-
-  <section class="stats">
-    <div class="stat">
-      <span>Total Reminders</span>
-      <strong id="total">—</strong>
-    </div>
-
-    <div class="stat">
-      <span>Scheduled</span>
-      <strong id="scheduled">—</strong>
-    </div>
-
-    <div class="stat">
-      <span>Confirmed</span>
-      <strong id="confirmed">—</strong>
-    </div>
-
-    <div class="stat">
-      <span>Needs Attention</span>
-      <strong id="attention">—</strong>
-    </div>
-  </section>
-
-  <section class="grid">
-
-    <div class="panel">
-
-      <div class="panel-header">
-        <div>
-          <h2>Recent Reminders</h2>
-          <div class="small">Data from your CareCall backend</div>
+      <div class="sidebar-bottom">
+        <div class="help-card">
+          <div class="help-icon">?</div>
+          <strong>Need a hand?</strong>
+          <p>Our care team is here to help.</p>
+          <a href="mailto:support@carecall.local">Visit help center <span>↗</span></a>
         </div>
 
-        <div>
-          <input
-            class="search"
-            id="search"
-            placeholder="Search reminders..."
-            aria-label="Search reminders"
-          >
-
-          <button class="secondary" id="refresh">↻</button>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Reminder</th>
-              <th>Status</th>
-              <th>Scheduled</th>
-            </tr>
-          </thead>
-
-          <tbody id="callsBody">
-            <tr>
-              <td colspan="3">
-                <div class="empty">Loading reminders...</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="panel-body">
-        <div class="small" id="listInfo">Loading...</div>
-        <p class="health" id="healthText">Checking backend...</p>
-      </div>
-
-    </div>
-
-    <aside class="panel" id="formPanel">
-
-      <div class="panel-header">
-        <h2>Create a Reminder</h2>
-      </div>
-
-      <div class="panel-body">
-
-        <form id="callForm">
-
-          <div class="field">
-            <label for="phone">Phone Number *</label>
-
-            <input
-              id="phone"
-              type="tel"
-              placeholder="+919876543210"
-              value="+919999999999"
-              required
-              pattern="^\+?[0-9\s()\-]{8,20}$"
-            >
-
-            <div class="small">
-              Include the country code, for example +91.
-            </div>
-          </div>
-
-          <div class="field">
-            <label for="message">Reminder Message *</label>
-
-            <textarea
-              id="message"
-              required
-              maxlength="1000"
-            >Test medicine reminder. Please confirm that you have taken your medicine.</textarea>
-          </div>
-
-          <div class="two">
-
-            <div class="field">
-              <label for="language">Language</label>
-
-              <select id="language">
-                <option value="en">English</option>
-                <option value="hi">Hindi</option>
-                <option value="kn">Kannada</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label for="scheduledAt">Date and Time *</label>
-
-              <input
-                id="scheduledAt"
-                type="datetime-local"
-                required
-              >
-            </div>
-
-          </div>
-
-          <div class="field">
-            <label for="sender">Sender / Family Name</label>
-
-            <input
-              id="sender"
-              placeholder="e.g. Ananya"
-            >
-          </div>
-
-          <div class="field">
-            <label for="note">Extra Note (Optional)</label>
-
-            <input
-              id="note"
-              placeholder="Any helpful context"
-            >
-          </div>
-
-          <button
-            class="primary submit"
-            id="submitBtn"
-            type="submit"
-          >
-            + Save Reminder
-          </button>
-
-        </form>
-
-        <div class="safe-note">
-          <b>Safety:</b>
-          This dashboard is for demo and dry-run testing.
-          Keep real calls disabled.
-        </div>
-
+        <button class="profile-button" type="button">
+          <span class="avatar avatar-purple">SD</span>
+          <span class="profile-copy">
+            <strong>Sritej Deverkonda</strong>
+            <small>Care Coordinator</small>
+          </span>
+          <span class="more">···</span>
+        </button>
       </div>
     </aside>
 
-  </section>
+    <!-- Main Content Area -->
+    <main class="main-area">
+      <header class="topbar">
+        <button class="mobile-menu" id="menu-toggle" aria-label="Toggle menu">☰</button>
+        <div class="breadcrumb">
+          Workspace <span>/</span> <strong id="page-name">Dashboard</strong>
+        </div>
+        <div class="top-actions">
+          <span class="today-label" id="today-label">Today</span>
+          <span class="health-pill" id="system-health">● Connecting...</span>
+          <button class="filter-button" onclick="resetDemo()" style="color:#b91c1c;border-color:#fca5a5;cursor:pointer;">Reset Demo</button>
+          <span class="avatar avatar-purple top-avatar">SD</span>
+        </div>
+      </header>
 
-</main>
-
-<footer>
-  CareCall · Built for timely, thoughtful reminders · Demo Mode
-</footer>
-
-<script>
-const API = "";
-let allCalls = [];
-
-const $ = id => document.getElementById(id);
-
-function showAlert(message, type = "ok") {
-  const box = $("alert");
-
-  box.textContent = message;
-  box.className = `alert show ${type}`;
-
-  clearTimeout(showAlert.timer);
-
-  showAlert.timer = setTimeout(() => {
-    box.classList.remove("show");
-  }, 6000);
-}
-
-function safe(value) {
-  return String(value ?? "").replace(/[&<>"']/g, c => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[c]));
-}
-
-function prettyStatus(status) {
-  return String(status || "unknown")
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function formatDate(value) {
-  if (!value) return "Not scheduled";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return safe(value);
-  }
-
-  return date.toLocaleString([], {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-function renderCalls() {
-  const query = $("search").value.trim().toLowerCase();
-
-  const filtered = allCalls.filter(call => [
-    call.message,
-    call.phone,
-    call.status,
-    call.language
-  ].some(value => String(value || "").toLowerCase().includes(query)));
-
-  $("total").textContent = allCalls.length;
-
-  $("scheduled").textContent = allCalls.filter(call =>
-    ["scheduled", "rescheduled", "retrying"].includes(call.status)
-  ).length;
-
-  $("confirmed").textContent = allCalls.filter(call =>
-    call.status === "confirmed"
-  ).length;
-
-  $("attention").textContent = allCalls.filter(call =>
-    call.status === "needs_attention"
-  ).length;
-
-  $("listInfo").textContent =
-    `Showing ${filtered.length} of ${allCalls.length} reminders`;
-
-  const body = $("callsBody");
-
-  if (!filtered.length) {
-    body.innerHTML = `
-      <tr>
-        <td colspan="3">
-          <div class="empty">
-            <b>${allCalls.length ? "No matching reminders" : "No reminders yet"}</b>
+      <div class="page-content">
+        <!-- Welcome Row -->
+        <section class="welcome-row">
+          <div>
+            <div class="eyebrow">
+              <span class="live-dot"></span> YOUR CARE, IN GOOD HANDS
+            </div>
+            <h1 id="greeting">Good morning, Care Coordinator <span>✦</span></h1>
+            <p class="subtitle">Autonomous multi-agent check-in and caregiver escalation system · Team Carpe Diem</p>
           </div>
-        </td>
-      </tr>
-    `;
-    return;
-  }
-
-  body.innerHTML = filtered.map(call => {
-    const status = String(call.status || "unknown");
-    const allowed = [
-      "confirmed",
-      "scheduled",
-      "rescheduled",
-      "retrying",
-      "calling",
-      "needs_attention",
-      "failed"
-    ];
-
-    const statusClass = allowed.includes(status) ? status : "";
-
-    return `
-      <tr>
-        <td>
-          <div class="message">
-            ${safe(call.message || "Untitled reminder")}
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="filter-button" id="quick-call-scroll" style="height:39px;font-weight:700;padding:0 14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+              <span>📞</span> Instant Call Now
+            </button>
+            <button class="primary-button" id="new-reminder">
+              <span>＋</span> Create reminder
+            </button>
           </div>
+        </section>
 
-          <div class="small">
-            ${safe(call.phone || "No phone")} ·
-            ${safe((call.language || "en").toUpperCase())}
+        <!-- Stats Grid (4 Cards) -->
+        <section class="stats-grid" aria-label="Today's summary">
+          <article class="stat-card">
+            <div class="stat-top">
+              <span>Reminders today</span>
+              <span class="stat-icon lavender">◷</span>
+            </div>
+            <div class="stat-value"><span id="stat-total">0</span> <span class="trend" id="stat-total-trend">Active</span></div>
+            <div class="stat-note">Scheduled check-in calls</div>
+            <div class="mini-bars" aria-hidden="true">
+              <i style="height:35%"></i><i style="height:48%"></i>
+              <i style="height:40%"></i><i style="height:66%"></i>
+              <i style="height:52%"></i><i style="height:78%"></i>
+              <i style="height:60%"></i><i style="height:92%"></i>
+              <i style="height:70%"></i><i style="height:100%"></i>
+            </div>
+          </article>
+
+          <article class="stat-card">
+            <div class="stat-top">
+              <span>Successful check-ins</span>
+              <span class="stat-icon mint">✓</span>
+            </div>
+            <div class="stat-value"><span id="stat-confirmed">100</span><span class="unit">%</span> <span class="trend">Verified</span></div>
+            <div class="stat-note">Confirmed check-in responses</div>
+            <div class="progress-track"><span id="stat-progress-bar" style="width:100%"></span></div>
+          </article>
+
+          <article class="stat-card">
+            <div class="stat-top">
+              <span>Active contacts</span>
+              <span class="stat-icon peach">♧</span>
+            </div>
+            <div class="stat-value"><span id="stat-contacts">0</span> <span class="trend">Registered</span></div>
+            <div class="stat-note">Across your care circle</div>
+            <div class="avatar-stack">
+              <span class="avatar avatar-pink">SD</span>
+              <span class="avatar avatar-blue">PS</span>
+              <span class="avatar avatar-gold">ST</span>
+              <span class="stack-more">+more</span>
+            </div>
+          </article>
+
+          <article class="stat-card">
+            <div class="stat-top">
+              <span>Caregiver alerts</span>
+              <span class="stat-icon rose">!</span>
+            </div>
+            <div class="stat-value"><span id="stat-alerts">0</span> <span class="attention-label" id="stat-alerts-label">All Normal</span></div>
+            <div class="stat-note">Flagged for human follow-up</div>
+            <div class="attention-link"><a href="#alerts" data-page="alerts" style="color:inherit;text-decoration:none;">Review alerts <span>→</span></a></div>
+          </article>
+        </section>
+
+        <!-- Instant Outbound Call Card -->
+        <section class="panel" id="instant-call-panel" style="margin-bottom:16px;border-left:4px solid #10b981;">
+          <div class="panel-heading" style="margin-bottom:8px;">
+            <div>
+              <div class="panel-kicker" style="color:#059669;font-weight:800;">LIVE OUTBOUND TELEPHONY</div>
+              <h2 style="font-size:16px;">📞 Instant Check-in Call</h2>
+            </div>
+            <span class="badge-status status-confirmed" style="font-size:9px;">Twilio Active</span>
           </div>
-        </td>
+          <p class="subtitle" style="margin-bottom:12px;">Dials the contact immediately. The AI agent greets, verifies identity with the Birth Year keyword (<strong>2007</strong>) via speech or keypad, then conducts conversational check-in.</p>
+          
+          <form id="instantCallForm">
+            <div class="instant-call-grid">
+              <div>
+                <label style="font-size:9px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">PHONE NUMBER</label>
+                <input class="instant-input" id="instantPhone" value="+918147581686" placeholder="+918147581686" required>
+              </div>
+              <div>
+                <label style="font-size:9px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">CONTACT NAME</label>
+                <input class="instant-input" id="instantName" value="sritej" placeholder="sritej" required>
+              </div>
+              <div>
+                <label style="font-size:9px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">SPOKEN REMINDER MESSAGE</label>
+                <input class="instant-input" id="instantMessage" value="Take your BP tablets after breakfast and drink some water" placeholder="Reminder text" required>
+              </div>
+              <div style="align-self:end;">
+                <button type="submit" class="primary-button" id="instantCallBtn" style="background:#059669;height:36px;box-shadow:0 4px 10px #05966933;">
+                  <span>📞</span> Call Phone Now
+                </button>
+              </div>
+            </div>
+            <div id="callStatusBanner" class="call-banner"></div>
+          </form>
+        </section>
 
-        <td>
-          <span class="badge ${statusClass}">
-            ${safe(prettyStatus(status))}
-          </span>
+        <!-- Dashboard Grid (Upcoming Reminders & Live Activity) -->
+        <section class="dashboard-grid">
+          <!-- Upcoming Reminders Panel -->
+          <article class="panel reminders-panel" id="reminders-section">
+            <div class="panel-heading">
+              <div>
+                <div class="panel-kicker">STAY ON TRACK</div>
+                <h2>Upcoming reminders</h2>
+              </div>
+              <a class="text-link" href="#reminders" data-page="reminders">View all <span>→</span></a>
+            </div>
+            <div class="reminder-list" id="reminder-list">
+              <div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">Loading reminders...</div>
+            </div>
+          </article>
 
-          <div class="small">
-            Attempts: ${Number(call.attempts || 0)}
-            · Failed: ${Number(call.failed_attempts || 0)}
+          <!-- Recent Activity Panel -->
+          <article class="panel activity-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="panel-kicker">LIVE MULTI-AGENT UPDATES</div>
+                <h2>Recent activity</h2>
+              </div>
+              <button class="dots-button" aria-label="More activity options" onclick="loadAll()">↻</button>
+            </div>
+            <div class="activity-list" id="activity-list">
+              <div style="padding:20px;text-align:center;color:var(--muted);font-size:11px;">Listening for live events...</div>
+            </div>
+            <a class="activity-footer" href="#call-logs" data-page="call-logs">
+              See all activity <span>→</span>
+            </a>
+          </article>
+        </section>
+
+        <!-- Contacts Directory Panel -->
+        <section class="panel patients-panel" id="contacts-section" style="margin-bottom:16px;">
+          <div class="panel-heading patient-heading">
+            <div>
+              <div class="panel-kicker">YOUR CARE CIRCLE</div>
+              <h2>Contacts Directory</h2>
+            </div>
+            <div class="patient-tools">
+              <label class="search-box">
+                <span>⌕</span>
+                <input id="contact-search" type="search" placeholder="Search contacts…" aria-label="Search contacts">
+              </label>
+              <button class="primary-button" id="open-contact-modal" style="height:30px;font-size:10px;padding:0 10px;">
+                <span>＋</span> Add Contact
+              </button>
+            </div>
           </div>
-        </td>
-
-        <td>${safe(formatDate(call.scheduled_at))}</td>
-      </tr>
-    `;
-  }).join("");
-}
-
-async function loadHealth() {
-  try {
-    const response = await fetch("/api/health", {
-      cache: "no-store"
-    });
-
-    if (!response.ok) {
-      throw new Error("Health check failed");
-    }
-
-    const health = await response.json();
-
-    $("healthText").textContent =
-      `Backend connected · Database: ${health.db || "unknown"} · AI: ${health.llm || "unknown"}`;
-
-    if (
-      health.dry_run === false ||
-      health.demo_mode === false
-    ) {
-      showAlert(
-        "Safety warning: Demo mode or dry-run mode is disabled. Do not test real calls.",
-        "err"
-      );
-    }
-
-  } catch (error) {
-    $("healthText").textContent = "Backend unavailable";
-  }
-}
-
-async function loadCalls() {
-  $("callsBody").innerHTML = `
-    <tr>
-      <td colspan="3">
-        <div class="empty">Loading reminders...</div>
-      </td>
-    </tr>
-  `;
-
-  try {
-    const response = await fetch("/api/calls", {
-      cache: "no-store"
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (!Array.isArray(data)) {
-      throw new Error("Expected a list of reminders from the API.");
-    }
-
-    allCalls = data;
-
-    renderCalls();
-    await loadHealth();
-
-  } catch (error) {
-    $("callsBody").innerHTML = `
-      <tr>
-        <td colspan="3">
-          <div class="empty">
-            <b>Could not connect to CareCall</b>
-            <p>${safe(error.message)}</p>
-            Make sure your backend is running.
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Contact</th>
+                  <th>Phone</th>
+                  <th>Identity Keyword (Birth Year)</th>
+                  <th>Daily Reminders</th>
+                  <th>Caregiver Notes</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="contact-rows">
+                <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">Loading contacts...</td></tr>
+              </tbody>
+            </table>
           </div>
-        </td>
-      </tr>
-    `;
+        </section>
 
-    $("listInfo").textContent = "Connection error";
-    $("healthText").textContent = "Backend offline";
-  }
-}
+        <!-- Call Logs & Transcripts Panel -->
+        <section class="panel call-logs-panel" id="call-logs-section" style="margin-bottom:16px;">
+          <div class="panel-heading">
+            <div>
+              <div class="panel-kicker">VOICE CHECK-INS & MULTI-AGENT TRANSCRIPTS</div>
+              <h2>Call logs</h2>
+            </div>
+            <div class="patient-tools">
+              <label class="search-box">
+                <span>⌕</span>
+                <input id="call-search" type="search" placeholder="Search call logs…" aria-label="Search calls">
+              </label>
+              <button class="filter-button" onclick="loadCalls()">↻ Refresh</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Contact</th>
+                  <th>Call Time</th>
+                  <th>Outcome / Status</th>
+                  <th>Twilio SID</th>
+                  <th>Spoken Reminder & Transcripts</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="call-log-rows">
+                <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">Loading call logs...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-function setDefaultTime() {
-  const date = new Date(Date.now() + 10 * 60 * 1000);
+        <!-- Caregiver Escalations Panel -->
+        <section class="panel" id="alerts-section" style="margin-bottom:20px;border-left:4px solid #dc2626;">
+          <div class="panel-heading">
+            <div>
+              <div class="panel-kicker" style="color:#b91c1c;font-weight:800;">SAFETY ESCALATIONS</div>
+              <h2>🚨 Active Caregiver Alerts</h2>
+            </div>
+            <button class="filter-button" onclick="loadAlerts()">↻ Refresh Alerts</button>
+          </div>
+          <div id="alerts-list">
+            <div style="padding:15px;color:var(--muted);font-size:11px;">No active alerts. All check-ins healthy.</div>
+          </div>
+        </section>
 
-  date.setSeconds(0, 0);
+        <!-- Footer -->
+        <footer class="footer">
+          <span>Made with care <b>♥</b> for better health · Team Carpe Diem</span>
+          <span>CareCall © 2026</span>
+        </footer>
+      </div>
+    </main>
+  </div>
 
-  const localDate = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60000
-  ).toISOString().slice(0, 16);
+  <!-- Create Reminder Modal -->
+  <div class="modal-backdrop" id="modal" aria-hidden="true">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="modal-close" id="close-modal" aria-label="Close">×</button>
+      <div class="modal-symbol">✳</div>
+      <div class="panel-kicker">A LITTLE CARE GOES A LONG WAY</div>
+      <h2 id="modal-title">Schedule a Check-in Call</h2>
+      <p class="modal-intro">Set up an autonomous multi-agent voice reminder.</p>
+      <form id="reminder-form">
+        <label>Contact Phone Number *
+          <input id="reminder-phone" type="tel" value="+918147581686" placeholder="+918147581686" required>
+        </label>
+        <label>Contact Name
+          <input id="reminder-name" value="sritej" placeholder="sritej">
+        </label>
+        <label>What should we remind them about? *
+          <input id="reminder-title" required value="Take evening medication and confirm feeling well" placeholder="e.g. Take evening medication">
+        </label>
+        <div class="form-row">
+          <label>Date<input id="reminder-date" type="date" required></label>
+          <label>Time<input id="reminder-time" type="time" required></label>
+        </div>
+        <div class="form-row">
+          <label>Language
+            <select id="reminder-lang">
+              <option value="en" selected>English (en)</option>
+              <option value="hi">Hindi (hi)</option>
+              <option value="kn">Kannada (kn)</option>
+            </select>
+          </label>
+        </div>
+        <label>Call note (Context for Groq LLM)
+          <textarea id="reminder-note" rows="2" placeholder="e.g. Inquire gently if breakfast was eaten"></textarea>
+        </label>
+        <div class="form-actions">
+          <button type="button" class="secondary-button" id="cancel-modal">Cancel</button>
+          <button type="submit" class="primary-button" id="save-reminder-btn">Save reminder <span>→</span></button>
+        </div>
+      </form>
+    </section>
+  </div>
 
-  $("scheduledAt").value = localDate;
-}
+  <!-- Add Contact Modal -->
+  <div class="modal-backdrop" id="contact-modal" aria-hidden="true">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title">
+      <button class="modal-close" id="close-contact-modal" aria-label="Close">×</button>
+      <div class="modal-symbol">♧</div>
+      <div class="panel-kicker">CARE CIRCLE DIRECTORY</div>
+      <h2 id="contact-modal-title">Add Contact Profile</h2>
+      <p class="modal-intro">Register contact details and identity verification keyword.</p>
+      <form id="new-contact-form">
+        <label>Full Name *
+          <input id="new-contact-name" value="Sritej Deverkonda" placeholder="Sritej Deverkonda" required>
+        </label>
+        <label>Phone Number (International format) *
+          <input id="new-contact-phone" value="+918147581686" placeholder="+918147581686" required>
+        </label>
+        <label>Identity Secret Keyword (Birth Year) *
+          <input id="new-contact-secret" value="2007" placeholder="2007" required>
+        </label>
+        <label>Daily Reminders
+          <textarea id="new-contact-reminders" rows="2" placeholder="Take BP tablets after breakfast and drink water">Take BP tablets after breakfast and drink water</textarea>
+        </label>
+        <label>Caregiver Notes
+          <textarea id="new-contact-notes" rows="2" placeholder="Prefers morning check-in">Prefers morning check-in</textarea>
+        </label>
+        <div class="form-actions">
+          <button type="button" class="secondary-button" id="cancel-contact-modal">Cancel</button>
+          <button type="submit" class="primary-button">Register Contact <span>→</span></button>
+        </div>
+      </form>
+    </section>
+  </div>
 
-$("callForm").addEventListener("submit", async event => {
-  event.preventDefault();
+  <!-- Toast Feedback -->
+  <div class="toast" id="toast" role="status"></div>
 
-  const button = $("submitBtn");
-
-  const phone = $("phone").value.trim();
-  const message = $("message").value.trim();
-
-  if (!phone || !message) {
-    showAlert("Phone number and message are required.", "err");
-    return;
-  }
-
-  const selectedDate = new Date($("scheduledAt").value);
-
-  if (Number.isNaN(selectedDate.getTime())) {
-    showAlert("Please select a valid date and time.", "err");
-    return;
-  }
-
-  if (selectedDate.getTime() <= Date.now()) {
-    showAlert("Choose a future date and time.", "err");
-    return;
-  }
-
-  const payload = {
-    phone: phone,
-    message: message,
-    language: $("language").value,
-    scheduled_at: selectedDate.toISOString(),
-    note: $("note").value.trim(),
-    sender_name: $("sender").value.trim()
-  };
-
-  button.disabled = true;
-  button.textContent = "Saving reminder...";
-
-  try {
-    const response = await fetch("/api/calls", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(
-        typeof result.detail === "string"
-          ? result.detail
-          : `Request failed: HTTP ${response.status}`
-      );
-    }
-
-    showAlert(
-      "Reminder saved! Check the reminder list below. Calls remain simulated in dry-run mode.",
-      "ok"
-    );
-
-    $("message").value = "";
-    $("note").value = "";
-
-    setDefaultTime();
-
-    await loadCalls();
-
-  } catch (error) {
-    showAlert(
-      `Could not save reminder: ${error.message}`,
-      "err"
-    );
-  } finally {
-    button.disabled = false;
-    button.textContent = "+ Save Reminder";
-  }
-});
-
-$("refresh").addEventListener("click", loadCalls);
-
-$("search").addEventListener("input", renderCalls);
-
-$("jumpForm").addEventListener("click", () => {
-  $("formPanel").scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
-});
-
-setDefaultTime();
-loadCalls();
-</script>
-
+  <!-- Real-time Application Logic -->
+  <script src="app.js"></script>
 </body>
 </html>

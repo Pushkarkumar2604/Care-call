@@ -1256,3 +1256,190 @@ td:first-child {
     padding: 23px 19px;
   }
 }
+
+
+/* ============================================================
+   CareCall Supplemental Styles (Multi-Agent Integration)
+   ============================================================ */
+
+.health-pill {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 5px 11px;
+  border-radius: 20px;
+  background: #eaf8f1;
+  color: #16794b;
+  border: 1px solid #a7f3d0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.3px;
+}
+
+.badge-status {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.status-scheduled { background: #f1efff; color: #7067dc; }
+.status-calling { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.status-confirmed { background: #eaf8f1; color: #16794b; border: 1px solid #a7f3d0; }
+.status-needs_attention, .status-failed { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+.status-rescheduled, .status-retrying { background: #e0f2fe; color: #0369a1; }
+
+.call-sm-btn {
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.call-sm-btn:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.agent-tag {
+  font-size: 8px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-block;
+}
+
+.agent-PLANNER { background: #ede9fe; color: #6d28d9; }
+.agent-SCHEDULER { background: #f1f5f9; color: #475569; }
+.agent-TWILIO { background: #fce7f3; color: #be185d; }
+.agent-LISTENER { background: #dbeafe; color: #1d4ed8; }
+.agent-GUARDIAN { background: #fef3c7; color: #b45309; }
+.agent-REPORTER { background: #dcfce7; color: #15803d; }
+.agent-SYSTEM, .agent-ALERTS { background: #fee2e2; color: #b91c1c; }
+
+.alert-item {
+  background: #fff;
+  border: 1px solid #f0f0f4;
+  border-left: 4px solid #b91c1c;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform 0.15s ease;
+}
+
+.alert-item:hover {
+  transform: translateX(2px);
+}
+
+.alert-item.high { border-left-color: #dc2626; background: #fffafa; }
+.alert-item.medium { border-left-color: #f59e0b; background: #fffdf7; }
+.alert-item.low { border-left-color: #3b82f6; background: #f8fbff; }
+
+.alert-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+}
+
+.alert-reason {
+  font-weight: 700;
+  font-size: 11px;
+  color: #29283c;
+  line-height: 1.4;
+}
+
+.instant-call-grid {
+  display: grid;
+  grid-template-columns: 140px 140px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+@media (max-width: 850px) {
+  .instant-call-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.instant-input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fff;
+  width: 100%;
+}
+
+.instant-input:focus {
+  outline: none;
+  border-color: #7067dc;
+  box-shadow: 0 0 0 2px #7067dc1f;
+}
+
+.call-banner {
+  margin-top: 12px;
+  padding: 11px 15px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  display: none;
+  line-height: 1.5;
+}
+
+.call-banner.ringing {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  display: block;
+}
+
+.call-banner.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  display: block;
+}
+
+.transcript-box {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.transcript-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #edf2f7;
+}
+
+.transcript-line:last-child {
+  border-bottom: none;
+}
