@@ -576,6 +576,7 @@ footer {
 const API = "";
 let allCalls = [];
 
+<<<<<<< HEAD
 const $ = id => document.getElementById(id);
 
 function showAlert(message, type = "ok") {
@@ -589,6 +590,17 @@ function showAlert(message, type = "ok") {
   showAlert.timer = setTimeout(() => {
     box.classList.remove("show");
   }, 6000);
+=======
+function switchTab(tab, evt) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('alertsView').style.display = tab === 'alerts' ? 'block' : 'none';
+  document.getElementById('contactsView').style.display = tab === 'contacts' ? 'block' : 'none';
+  document.getElementById('callsView').style.display = tab === 'calls' ? 'block' : 'none';
+  if (evt && evt.target) {
+    const btn = evt.target.closest('.tab-btn') || evt.target;
+    btn.classList.add('active');
+  }
+>>>>>>> 1c488d6c2f765a4dbc121a3949ff3d1feb2b1845
 }
 
 function safe(value) {

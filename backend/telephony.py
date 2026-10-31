@@ -14,16 +14,17 @@ WEBHOOK_TOKEN = "e6c81c82-2652-4826-ad15-f4c7a722bcf7"
 
 
 def update_live_voice_twiml(name: str, message: str, lang: str = "en-IN"):
-    """Dynamically updates the live public Voice TwiML so Alice speaks the exact reminder text entered."""
+    """Dynamically updates the fallback Voice TwiML to ask for the identity keyword first."""
     url = f"https://webhook.site/token/{WEBHOOK_TOKEN}"
-    clean_name = name.strip() or "there"
-    clean_msg = message.strip() or "Daily check-in call"
+    base = config.get_public_url()
+    action_url = f"{base}/twilio/respond?stage=verify"
 
     xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice" language="{lang}">Hello {clean_name}, this is your CareCall check-in! I am calling with your reminder: {clean_msg}. How are you feeling today?</Say>
-  <Pause length="2"/>
-  <Say voice="alice" language="{lang}">Thank you for checking in with CareCall. Please take care and have a wonderful day! Goodbye.</Say>
+  <Gather input="speech dtmf" action="{action_url}" method="POST" speechTimeout="auto" language="{lang}" timeout="6">
+    <Say voice="alice" language="{lang}">Hello! This is CareCall. May I verify your identity? Please state your year of birth.</Say>
+  </Gather>
+  <Redirect method="POST">{action_url}&amp;noinput=1</Redirect>
 </Response>"""
 
     payload = json.dumps({
@@ -61,11 +62,12 @@ def place_call(call: dict, attempt: int) -> str:
     if base and base.startswith("https://") and "supabase" not in base:
         try:
             req = urllib.request.Request(f"{base}/twilio/voice?{qs}", headers={"User-Agent": "CareCall/1.0"})
-            with urllib.request.urlopen(req, timeout=1.5) as probe:
+            with urllib.request.urlopen(req, timeout=3.5) as probe:
                 if probe.status == 200:
                     voice_url = f"{base}/twilio/voice?{qs}"
-        except Exception:
-            pass
+                    print(f"[telephony] Using live conversational endpoint: {voice_url}")
+        except Exception as e:
+            print("[telephony] Tunnel probe fallback to cloud endpoint:", e)
 
     client = Client(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
     # Place the call with guaranteed 200 OK voice URL

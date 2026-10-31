@@ -22,33 +22,45 @@ def is_emergency(text: str) -> bool:
     return any(w in t for w in EMERGENCY_WORDS)
 
 
-def classify_identity_reply(speech: str, contact_name: str) -> str:
-    """Classifies initial reply: CONTACT / OTHER / UNCLEAR"""
+def is_contact_verified_by_keyword(speech: str, contact_name: str, secret_keyword: str = "2007") -> bool:
+    """Verifies contact identity using the assigned birth year keyword (2007) or name.
+    Supports speech, digits (DTMF), and phonetic spellings like 'two thousand seven'.
+    """
     t = speech.lower().strip()
-    first_name = contact_name.lower().split()[0]
+    digits = "".join(re.findall(r"\d+", t))
+    
+    # 1. Primary Keyword: Birth year (2007)
+    expected_year = (secret_keyword or "2007").strip().lower()
+    if expected_year in digits or expected_year in t:
+        return True
+    if "two thousand seven" in t or "two thousand and seven" in t:
+        return True
+        
+    # 2. Also accept if they explicitly state contact name
+    first_name = contact_name.lower().split()[0] if contact_name else "sritej"
+    if first_name in t:
+        return True
+        
+    return False
+
+
+def classify_identity_reply(speech: str, contact_name: str) -> str:
+    """Classifies reply: CONTACT if name keyword is present, else OTHER or UNCLEAR."""
+    t = speech.lower().strip()
+    first_name = contact_name.lower().split()[0] if contact_name else "sritej"
+    
+    # Single primary keyword check: Did they say the contact's name (e.g. 'sritej', 'i am sritej')?
+    if is_contact_verified_by_keyword(speech, contact_name):
+        return "CONTACT"
     
     # Direct affirmative
-    if any(p in t for p in ["yes", "yeah", "speaking", "this is", "myself", "i am", "it is me", f"i am {first_name}", f"this is {first_name}"]):
+    if any(p in t for p in ["yes", "yeah", "speaking", "this is", "myself", "it is me"]):
         return "CONTACT"
     
     # Direct other person
     if any(p in t for p in ["not here", "not available", "wrong number", "who is this", "busy", "sleeping", "outside", "away", "he is", "she is", "son", "daughter", "friend", "roommate", "not speaking"]):
         return "OTHER"
     
-    # LLM classification fallback
-    try:
-        res = ask_json(
-            "You are an identity classifier. Determine if the person speaking is the intended contact, someone else, or unclear. "
-            'Return JSON: {"classification": "CONTACT" | "OTHER" | "UNCLEAR"}',
-            f'Contact name: "{contact_name}"\nPerson answered: "{speech}"',
-            max_tokens=30,
-            timeout=2.0
-        )
-        c = res.get("classification", "UNCLEAR").upper()
-        if c in ("CONTACT", "OTHER", "UNCLEAR"):
-            return c
-    except Exception:
-        pass
     return "UNCLEAR"
 
 
