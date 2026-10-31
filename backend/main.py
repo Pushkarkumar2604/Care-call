@@ -85,6 +85,17 @@ def normalize_phone(phone: str) -> str:
 
 
 # ============================================================
+# CAREGIVER RECEIVERS (Team Carpe Diem Escalation Network)
+# ============================================================
+
+CAREGIVER_RECEIVERS = [
+    {"name": "Sritej Deverkonda", "phone": "+918147581686", "role": "Lead Coordinator"},
+    {"name": "Satyam Tiwari", "phone": "+919532981656", "role": "Caregiver Receiver"},
+    {"name": "Pushkar Singh", "phone": "+917425849166", "role": "Caregiver Receiver"},
+]
+
+
+# ============================================================
 # REQUEST MODELS
 # ============================================================
 
@@ -95,6 +106,7 @@ class CallIn(BaseModel):
     language: str = "en"
     note: str = ""
     sender_name: str = ""
+    voice: str = "Polly.Aditi"
 
 
 class ContactIn(BaseModel):
@@ -104,7 +116,8 @@ class ContactIn(BaseModel):
     language: str = "en-IN"
     reminders: str = ""
     notes: str = ""
-    caregiver_contact: str = ""
+    caregiver_contact: str = "+919532981656, +917425849166"
+    voice: str = "Polly.Aditi"
 
 
 class ImmediateCallIn(BaseModel):
@@ -112,6 +125,7 @@ class ImmediateCallIn(BaseModel):
     message: str = "Daily check-in call"
     name: str = ""
     note: str = ""
+    voice: str = "Polly.Aditi"
 
 
 # ============================================================
@@ -155,6 +169,16 @@ def get_app():
     raise HTTPException(status_code=404, detail="app.js not found.")
 
 
+@app.get("/api/voices")
+def list_voices():
+    return config.AVAILABLE_VOICES
+
+
+@app.get("/api/receivers")
+def list_receivers():
+    return CAREGIVER_RECEIVERS
+
+
 @app.get("/api/health")
 def health():
     return {
@@ -164,6 +188,9 @@ def health():
         "db": BACKEND_NAME,
         "llm": config.LLM_PROVIDER,
         "public_url": config.get_public_url(),
+        "default_voice": config.DEFAULT_VOICE,
+        "voices": config.AVAILABLE_VOICES,
+        "receivers": CAREGIVER_RECEIVERS,
         "languages": config.ENABLED_LANGUAGES,
         "jobs": len(scheduler.sched.get_jobs()),
         "alerts_count": len(db.list_alerts()),
@@ -415,16 +442,17 @@ async def twilio_voice(request: Request, contact_id: str | None = None, call_id:
 
     name = (c.get("sender_name") if c and c.get("sender_name") else contact.get("name")) or "sritej"
     lang = contact.get("language", "en-IN")
+    tts_voice = request.query_params.get("voice") or (c.get("voice") if c else None) or (contact.get("voice") if contact else None) or config.DEFAULT_VOICE
 
     # STRICT INITIAL PROMPT: First ask for birth year, then wait and listen
     ask_identity = "Hello! This is CareCall. May I verify your identity? Please state your year of birth."
     db.upsert_session(call_sid, contact["id"], state="verify", history=[{"role": "assistant", "text": ask_identity}])
     if call_id:
-        db.add_event(call_id, "TWILIO", "Call answered. Asking for birth year keyword (2007).")
+        db.add_event(call_id, "TWILIO", f"Call answered. Asking for birth year keyword (2007) with voice {tts_voice}.")
 
     base = config.get_public_url()
-    action_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={call_sid}&stage=verify" + (f"&call_id={call_id}" if call_id else "")
-    noinput_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={call_sid}&stage=verify&noinput=1" + (f"&call_id={call_id}" if call_id else "")
+    action_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={call_sid}&stage=verify&voice={tts_voice}" + (f"&call_id={call_id}" if call_id else "")
+    noinput_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={call_sid}&stage=verify&noinput=1&voice={tts_voice}" + (f"&call_id={call_id}" if call_id else "")
 
     vr = VoiceResponse()
     g = Gather(
@@ -435,7 +463,7 @@ async def twilio_voice(request: Request, contact_id: str | None = None, call_id:
         speech_timeout="auto",
         timeout=6,
     )
-    g.say(ask_identity, voice="alice", language=lang)
+    g.say(ask_identity, voice=tts_voice, language=lang)
     vr.append(g)
     vr.redirect(noinput_url, method="POST")
     return xml(vr)
@@ -477,6 +505,8 @@ async def twilio_respond(
         contacts = db.list_contacts()
         contact = contacts[0] if contacts else {"id": "default", "name": "sritej", "language": "en-IN", "secret_check": "2007"}
 
+    tts_voice = request.query_params.get("voice") or (c.get("voice") if c else None) or (contact.get("voice") if contact else None) or config.DEFAULT_VOICE
+
     sid = call_sid or str(form.get("CallSid") or request.query_params.get("CallSid") or "test-sid")
     session = db.get_session(sid)
     if not session:
@@ -494,12 +524,12 @@ async def twilio_respond(
     if curr_stage == "verify":
         # Case A: Silence / No response received -> Create Alert & Cut Call
         if is_noinput or not speech:
-            alert_reason = f"No response received during birth year verification for {name}. Nobody answered or recipient remained silent."
+            alert_reason = f"No response received during birth year verification for {name}. Nobody answered or recipient remained silent. Caregivers notified: Satyam (+919532981656), Pushkar (+917425849166), Sritej."
             db.create_alert(contact["id"], "high", [alert_reason])
             if call_id:
-                db.add_event(call_id, "GUARDIAN", "ALERT: Silent/No response for birth year check. Alerted caregiver.")
+                db.add_event(call_id, "GUARDIAN", "ALERT: Silent/No response for birth year check. Dispatched to caregivers Satyam, Pushkar, Sritej.")
             silence_reply = "No response received. For your security, ending call. Goodbye."
-            vr.say(silence_reply, voice="alice", language=lang)
+            vr.say(silence_reply, voice=tts_voice, language=lang)
             vr.hangup()
             return xml(vr)
 
@@ -527,7 +557,7 @@ async def twilio_respond(
                 db.add_event(call_id, "GUARDIAN", f"Identity verified via birth year 2007 (spoken: '{speech}').")
                 db.add_event(call_id, "CARECALL", f"Delivered reminder: '{reminder}'.")
 
-            chat_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={sid}&stage=chat" + (f"&call_id={call_id}" if call_id else "")
+            chat_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={sid}&stage=chat&voice={tts_voice}" + (f"&call_id={call_id}" if call_id else "")
             g = Gather(
                 input="speech dtmf",
                 action=chat_url,
@@ -536,20 +566,20 @@ async def twilio_respond(
                 speech_timeout="auto",
                 timeout=6,
             )
-            g.say(verified_reply, voice="alice", language=lang)
+            g.say(verified_reply, voice=tts_voice, language=lang)
             vr.append(g)
             vr.redirect(chat_url, method="POST")
             return xml(vr)
 
         # Case C: Said something other than '2007' -> Create Alert & Cut Call
         else:
-            alert_reason = f"Unverified recipient answered call for {name}: '{speech}'. Expected birth year 2007."
+            alert_reason = f"Unverified recipient answered call for {name}: '{speech}'. Expected birth year 2007. Caregivers notified: Satyam (+919532981656), Pushkar (+917425849166), Sritej."
             db.create_alert(contact["id"], "high", [alert_reason])
             if call_id:
-                db.add_event(call_id, "GUARDIAN", f"ALERT: Recipient said '{speech}' (birth year 2007 missing). Cut call & alerted caregiver.")
+                db.add_event(call_id, "GUARDIAN", f"ALERT: Recipient said '{speech}' (birth year 2007 missing). Cut call & dispatched to caregivers Satyam, Pushkar, Sritej.")
 
             reject_msg = "Sorry, birth year was not verified. For privacy, reminders cannot be disclosed. Goodbye."
-            vr.say(reject_msg, voice="alice", language=lang)
+            vr.say(reject_msg, voice=tts_voice, language=lang)
             vr.hangup()
             return xml(vr)
 
@@ -563,19 +593,19 @@ async def twilio_respond(
 
     # Emergency keyword detection (Hurdle 2 safety gate)
     if is_emergency(speech):
-        emergency_reply = "Please call emergency services at 112 right now. I am alerting your caregiver immediately."
-        vr.say(emergency_reply, voice="alice", language=lang)
+        emergency_reply = "Please call emergency services at 112 right now. I am alerting your caregivers immediately."
+        vr.say(emergency_reply, voice=tts_voice, language=lang)
         vr.hangup()
-        db.create_alert(contact["id"], "high", [f"EMERGENCY keywords detected during check-in call with {name}: '{speech}'"])
+        db.create_alert(contact["id"], "high", [f"EMERGENCY keywords detected during check-in with {name}: '{speech}'. Alerted caregivers: Satyam (+919532981656), Pushkar (+917425849166), Sritej."])
         if call_id:
-            db.add_event(call_id, "SYSTEM", f"EMERGENCY detected: '{speech}'. Alerted caregiver.")
+            db.add_event(call_id, "SYSTEM", f"EMERGENCY detected: '{speech}'. Dispatched to caregivers Satyam, Pushkar, Sritej.")
         background.add_task(evaluate_call_results, contact["id"], history)
         return xml(vr)
 
     # Wrap up check
     if any(w in speech.lower() for w in ["goodbye", "bye", "that's all", "nothing else", "talk later", "all done", "all set"]):
         goodbye_reply = f"Thank you for checking in with me today, {name}. Please take care and have a wonderful day! Goodbye."
-        vr.say(goodbye_reply, voice="alice", language=lang)
+        vr.say(goodbye_reply, voice=tts_voice, language=lang)
         vr.hangup()
         background.add_task(evaluate_call_results, contact["id"], history)
         if call_id:
@@ -583,7 +613,7 @@ async def twilio_respond(
             db.add_event(call_id, "TWILIO", "Check-in call completed successfully.")
         return xml(vr)
 
-    action_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={sid}&stage=chat" + (f"&call_id={call_id}" if call_id else "")
+    action_url = f"{base}/twilio/respond?contact_id={contact['id']}&call_sid={sid}&stage=chat&voice={tts_voice}" + (f"&call_id={call_id}" if call_id else "")
 
     if not speech:
         reprompt = f"Hello {name}, I am here for your check-in. Did you take your reminders today, or how are you feeling?"
@@ -597,7 +627,7 @@ async def twilio_respond(
             speech_timeout="auto",
             timeout=7,
         )
-        g.say(reprompt, voice="alice", language=lang)
+        g.say(reprompt, voice=tts_voice, language=lang)
         vr.append(g)
         return xml(vr)
 
@@ -611,7 +641,7 @@ async def twilio_respond(
     # Conclude after enough conversational turns
     if len(history) >= 6:
         conclude = f"{reply} Thank you for checking in with me today, {name}. Have a wonderful day. Goodbye!"
-        vr.say(conclude, voice="alice", language=lang)
+        vr.say(conclude, voice=tts_voice, language=lang)
         vr.hangup()
         background.add_task(evaluate_call_results, contact["id"], history)
         if call_id:
@@ -627,7 +657,7 @@ async def twilio_respond(
         speech_timeout="auto",
         timeout=7,
     )
-    g.say(reply, voice="alice", language=lang)
+    g.say(reply, voice=tts_voice, language=lang)
     vr.append(g)
     return xml(vr)
 
@@ -662,7 +692,7 @@ async def twilio_status(
 
     # If call failed to connect or was not answered -> Create Caregiver Alert
     if status in ("no-answer", "busy", "failed", "canceled"):
-        db.create_alert(cid, "high", [f"Nobody answered call to {contact_name} ({status}). Please check on them."])
+        db.create_alert(cid, "high", [f"Nobody answered call to {contact_name} ({status}). Alerted caregivers: Satyam (+919532981656), Pushkar (+917425849166), Sritej (+918147581686)."])
         if call_id:
             db.update_call(call_id, status="needs_attention")
             db.add_event(call_id, "SYSTEM", f"Nobody answered ({status}). Caregiver alert created.")

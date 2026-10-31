@@ -13,16 +13,16 @@ RING_SECONDS = 20
 WEBHOOK_TOKEN = "e6c81c82-2652-4826-ad15-f4c7a722bcf7"
 
 
-def update_live_voice_twiml(name: str, message: str, lang: str = "en-IN"):
+def update_live_voice_twiml(name: str, message: str, lang: str = "en-IN", voice: str = "Polly.Aditi"):
     """Dynamically updates the fallback Voice TwiML to ask for the identity keyword first."""
     url = f"https://webhook.site/token/{WEBHOOK_TOKEN}"
     base = config.get_public_url()
-    action_url = f"{base}/twilio/respond?stage=verify"
+    action_url = f"{base}/twilio/respond?stage=verify&voice={voice}"
 
     xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech dtmf" action="{action_url}" method="POST" speechTimeout="auto" language="{lang}" timeout="6">
-    <Say voice="alice" language="{lang}">Hello! This is CareCall. May I verify your identity? Please state your year of birth.</Say>
+    <Say voice="{voice}" language="{lang}">Hello! This is CareCall. May I verify your identity? Please state your year of birth.</Say>
   </Gather>
   <Redirect method="POST">{action_url}&amp;noinput=1</Redirect>
 </Response>"""
@@ -44,9 +44,10 @@ def update_live_voice_twiml(name: str, message: str, lang: str = "en-IN"):
 def place_call(call: dict, attempt: int) -> str:
     """Start an outbound call. Returns the Twilio Call SID (or a fake one in DRY_RUN)."""
     base = config.get_public_url()
-    qs = urlencode({"call_id": call["id"], "attempt": attempt})
+    voice = call.get("voice") or config.DEFAULT_VOICE
+    qs = urlencode({"call_id": call["id"], "attempt": attempt, "voice": voice})
     if config.DRY_RUN:
-        print(f"\n[DRY_RUN] Would call {call['phone']} (attempt {attempt}).")
+        print(f"\n[DRY_RUN] Would call {call['phone']} (attempt {attempt}, voice {voice}).")
         return f"DRYRUN-{attempt}"
 
     # Extract dynamic name and message to speak
@@ -55,7 +56,7 @@ def place_call(call: dict, attempt: int) -> str:
     lang = "en-IN" if call.get("language") in ("en", None, "") else call.get("language")
 
     # 1. Update the permanent cloud TwiML endpoint with the exact reminder text
-    update_live_voice_twiml(name, msg, lang)
+    update_live_voice_twiml(name, msg, lang, voice)
 
     # 2. Select the most reliable active Voice URL
     voice_url = f"https://webhook.site/{WEBHOOK_TOKEN}?{qs}"
@@ -79,11 +80,12 @@ def place_call(call: dict, attempt: int) -> str:
     return c.sid
 
 
-def _say(target, text: str, lang: str):
-    target.say(text, voice=config.VOICES.get(lang, config.VOICES["en"]), language=LANGS[lang]["code"])
+def _say(target, text: str, lang: str, voice: str | None = None):
+    v = voice or config.VOICES.get(lang, config.DEFAULT_VOICE)
+    target.say(text, voice=v, language=LANGS[lang]["code"])
 
 
-def gather_twiml(lang: str, texts: list[str], action_url: str, noinput_url: str) -> str:
+def gather_twiml(lang: str, texts: list[str], action_url: str, noinput_url: str, voice: str | None = None) -> str:
     """Speak texts, then listen for speech or one keypad digit."""
     vr = VoiceResponse()
     g = Gather(
@@ -98,16 +100,16 @@ def gather_twiml(lang: str, texts: list[str], action_url: str, noinput_url: str)
     )
     for t in texts:
         if t:
-            _say(g, t, lang)
+            _say(g, t, lang, voice)
     vr.append(g)
     vr.redirect(noinput_url, method="POST")
     return str(vr)
 
 
-def hangup_twiml(lang: str, texts: list[str]) -> str:
+def hangup_twiml(lang: str, texts: list[str], voice: str | None = None) -> str:
     vr = VoiceResponse()
     for t in texts:
         if t:
-            _say(vr, t, lang)
+            _say(vr, t, lang, voice)
     vr.hangup()
     return str(vr)

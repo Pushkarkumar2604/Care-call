@@ -48,6 +48,11 @@ class SupabaseDB:
         fields["updated_at"] = now_iso()
         self.sb.table("calls").update(fields).eq("id", call_id).execute()
 
+    def update_call_if_status(self, call_id: str, old_status: str, **fields):
+        fields["updated_at"] = now_iso()
+        res = self.sb.table("calls").update(fields).eq("id", call_id).eq("status", old_status).execute()
+        return len(res.data) > 0 if res.data else False
+
     def list_calls(self):
         return self.sb.table("calls").select("*").order("created_at", desc=True).limit(50).execute().data
 
@@ -77,7 +82,15 @@ class SupabaseDB:
         return data[0] if data else None
 
     def list_contacts(self):
-        return self.sb.table("contacts").select("*").order("created_at", desc=True).execute().data
+        rows = self.sb.table("contacts").select("*").order("created_at", desc=True).execute().data
+        seen = set()
+        deduped = []
+        for r in rows:
+            p = r.get("phone")
+            if p not in seen:
+                seen.add(p)
+                deduped.append(r)
+        return deduped
 
     # Call Attempts
     def add_attempt(self, contact_id: str, attempt_no: int, twilio_sid: str, status: str):
@@ -197,6 +210,12 @@ class SqliteDB:
         sets = ", ".join(f"{k}=?" for k in fields)
         self._q(f"UPDATE calls SET {sets} WHERE id=?", [*fields.values(), call_id])
 
+    def update_call_if_status(self, call_id: str, old_status: str, **fields):
+        fields["updated_at"] = now_iso()
+        sets = ", ".join(f"{k}=?" for k in fields)
+        cur = self._q(f"UPDATE calls SET {sets} WHERE id=? AND status=?", [*fields.values(), call_id, old_status])
+        return cur.rowcount > 0
+
     def list_calls(self):
         return self._q("SELECT * FROM calls ORDER BY created_at DESC LIMIT 50")
 
@@ -227,7 +246,15 @@ class SqliteDB:
         return rows[0] if rows else None
 
     def list_contacts(self):
-        return self._q("SELECT * FROM contacts ORDER BY created_at DESC")
+        rows = self._q("SELECT * FROM contacts ORDER BY created_at DESC")
+        seen = set()
+        deduped = []
+        for r in rows:
+            p = r.get("phone")
+            if p not in seen:
+                seen.add(p)
+                deduped.append(r)
+        return deduped
 
     # Call Attempts
     def add_attempt(self, contact_id: str, attempt_no: int, twilio_sid: str, status: str):

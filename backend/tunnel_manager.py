@@ -25,6 +25,8 @@ def run_tunnel():
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1
             )
             for line in proc.stdout:
@@ -37,9 +39,12 @@ def run_tunnel():
                         print(f"[tunnel] Live public URL: {url}")
             proc.wait()
             print("[tunnel] Process exited, reconnecting in 2s...")
-        except Exception as e:
-            print("[tunnel] Error:", e)
-        time.sleep(2)
+        except BaseException as e:
+            print("[tunnel] Reconnecting after:", type(e).__name__)
+            try:
+                time.sleep(2)
+            except BaseException:
+                pass
 
 
 if __name__ == "__main__":

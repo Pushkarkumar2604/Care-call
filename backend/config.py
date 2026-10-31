@@ -36,11 +36,22 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 SQLITE_PATH = str(Path(__file__).resolve().parent / "carecall.db")
 
 ENABLED_LANGUAGES = [x.strip() for x in os.getenv("ENABLED_LANGUAGES", "en,hi,kn").split(",") if x.strip()]
+DEFAULT_VOICE = os.getenv("TWILIO_VOICE", "Polly.Aditi")
+
 VOICES = {
-    "en": os.getenv("VOICE_EN", "Google.en-IN-Standard-A"),
-    "hi": os.getenv("VOICE_HI", "Google.hi-IN-Standard-A"),
+    "en": os.getenv("VOICE_EN", "Polly.Aditi"),
+    "hi": os.getenv("VOICE_HI", "Polly.Aditi"),
     "kn": os.getenv("VOICE_KN", "Google.kn-IN-Standard-A"),
 }
+
+AVAILABLE_VOICES = [
+    {"id": "Polly.Aditi", "name": "Aditi (Indian English - Warm & Natural Female)", "lang": "en-IN"},
+    {"id": "Polly.Kajal-Neural", "name": "Kajal (Indian English Neural - Female)", "lang": "en-IN"},
+    {"id": "Polly.Raveena", "name": "Raveena (Indian English - Classic Female)", "lang": "en-IN"},
+    {"id": "Polly.Matthew", "name": "Matthew (US English - Professional Male)", "lang": "en-US"},
+    {"id": "Polly.Amy", "name": "Amy (British English - Natural Female)", "lang": "en-GB"},
+    {"id": "alice", "name": "Alice (Twilio Multilingual Standard)", "lang": "en-IN"},
+]
 
 CORS_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
 

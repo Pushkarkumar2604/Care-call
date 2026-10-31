@@ -43,6 +43,22 @@
         </a>
       </nav>
 
+      <div class="workspace-label" style="margin-top:24px;">RECEIVERS & CAREGIVERS</div>
+      <div style="padding:0 8px;font-size:9px;color:var(--muted);display:grid;gap:6px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="width:6px;height:6px;border-radius:50%;background:#10b981;flex:none;"></span>
+          <span><b>Sritej:</b> +918147581686</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="width:6px;height:6px;border-radius:50%;background:#10b981;flex:none;"></span>
+          <span><b>Satyam:</b> +919532981656</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="width:6px;height:6px;border-radius:50%;background:#10b981;flex:none;"></span>
+          <span><b>Pushkar:</b> +917425849166</span>
+        </div>
+      </div>
+
       <div class="sidebar-bottom">
         <div class="help-card">
           <div class="help-icon">?</div>
@@ -134,8 +150,8 @@
             <div class="stat-note">Across your care circle</div>
             <div class="avatar-stack">
               <span class="avatar avatar-pink">SD</span>
-              <span class="avatar avatar-blue">PS</span>
-              <span class="avatar avatar-gold">ST</span>
+              <span class="avatar avatar-blue">ST</span>
+              <span class="avatar avatar-gold">PS</span>
               <span class="stack-more">+more</span>
             </div>
           </article>
@@ -155,22 +171,41 @@
         <section class="panel" id="instant-call-panel" style="margin-bottom:16px;border-left:4px solid #10b981;">
           <div class="panel-heading" style="margin-bottom:8px;">
             <div>
-              <div class="panel-kicker" style="color:#059669;font-weight:800;">LIVE OUTBOUND TELEPHONY</div>
+              <div class="panel-kicker" style="color:#059669;font-weight:800;">LIVE OUTBOUND TELEPHONY & TTS ENGINE</div>
               <h2 style="font-size:16px;">📞 Instant Check-in Call</h2>
             </div>
             <span class="badge-status status-confirmed" style="font-size:9px;">Twilio Active</span>
           </div>
-          <p class="subtitle" style="margin-bottom:12px;">Dials the contact immediately. The AI agent greets, verifies identity with the Birth Year keyword (<strong>2007</strong>) via speech or keypad, then conducts conversational check-in.</p>
+          <p class="subtitle" style="margin-bottom:12px;">Dials the receiver immediately. The AI agent greets, verifies identity with the Birth Year keyword (<strong>2007</strong>) via speech or keypad, then speaks the customized reminder.</p>
           
+          <!-- Quick Receiver Selector -->
+          <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;">Select Receiver:</span>
+            <button type="button" class="filter-button" onclick="selectContact('+918147581686', 'Sritej Deverkonda', 'Take your blood pressure tablets and drink warm water')">👤 Sritej (+918147581686)</button>
+            <button type="button" class="filter-button" onclick="selectContact('+919532981656', 'Satyam Tiwari', 'Take your multivitamin tablets and drink water')">👤 Satyam (+919532981656)</button>
+            <button type="button" class="filter-button" onclick="selectContact('+917425849166', 'Pushkar Singh', 'Post-lunch walking check-in and hydration')">👤 Pushkar (+917425849166)</button>
+          </div>
+
           <form id="instantCallForm">
-            <div class="instant-call-grid">
+            <div class="instant-call-grid" style="grid-template-columns: 140px 130px 160px 1fr auto;">
               <div>
-                <label style="font-size:9px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">PHONE NUMBER</label>
+                <label style="font-size:9px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">RECEIVER PHONE</label>
                 <input class="instant-input" id="instantPhone" value="+918147581686" placeholder="+918147581686" required>
               </div>
               <div>
-                <label style="font-size:9px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">CONTACT NAME</label>
+                <label style="font-size:9px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">RECEIVER NAME</label>
                 <input class="instant-input" id="instantName" value="sritej" placeholder="sritej" required>
+              </div>
+              <div>
+                <label style="font-size:9px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">TEXT-TO-SPEECH (TTS) VOICE</label>
+                <select class="instant-input" id="instantVoice">
+                  <option value="Polly.Aditi" selected>Aditi (Indian Female - Warm)</option>
+                  <option value="Polly.Kajal-Neural">Kajal (Indian Neural Female)</option>
+                  <option value="Polly.Raveena">Raveena (Indian Classic Female)</option>
+                  <option value="Polly.Matthew">Matthew (US English Male)</option>
+                  <option value="Polly.Amy">Amy (British Female)</option>
+                  <option value="alice">Alice (Twilio Classic)</option>
+                </select>
               </div>
               <div>
                 <label style="font-size:9px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">SPOKEN REMINDER MESSAGE</label>
@@ -178,7 +213,7 @@
               </div>
               <div style="align-self:end;">
                 <button type="submit" class="primary-button" id="instantCallBtn" style="background:#059669;height:36px;box-shadow:0 4px 10px #05966933;">
-                  <span>📞</span> Call Phone Now
+                  <span>📞</span> Call Receiver Now
                 </button>
               </div>
             </div>
@@ -224,8 +259,8 @@
         <section class="panel patients-panel" id="contacts-section" style="margin-bottom:16px;">
           <div class="panel-heading patient-heading">
             <div>
-              <div class="panel-kicker">YOUR CARE CIRCLE</div>
-              <h2>Contacts Directory</h2>
+              <div class="panel-kicker">YOUR CARE CIRCLE & RECEIVER NETWORK</div>
+              <h2>Contacts & Receivers Directory</h2>
             </div>
             <div class="patient-tools">
               <label class="search-box">
@@ -241,11 +276,11 @@
             <table>
               <thead>
                 <tr>
-                  <th>Contact</th>
-                  <th>Phone</th>
+                  <th>Receiver Contact</th>
+                  <th>Phone Number</th>
                   <th>Identity Keyword (Birth Year)</th>
                   <th>Daily Reminders</th>
-                  <th>Caregiver Notes</th>
+                  <th>Preferred TTS Voice</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -275,7 +310,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Contact</th>
+                  <th>Receiver Contact</th>
                   <th>Call Time</th>
                   <th>Outcome / Status</th>
                   <th>Twilio SID</th>
@@ -299,6 +334,7 @@
             </div>
             <button class="filter-button" onclick="loadAlerts()">↻ Refresh Alerts</button>
           </div>
+          <p class="subtitle" style="margin-bottom:10px;color:var(--muted);">All high-severity safety alerts are dispatched simultaneously to receivers: <b>Satyam (+919532981656)</b>, <b>Pushkar (+917425849166)</b>, and <b>Sritej (+918147581686)</b>.</p>
           <div id="alerts-list">
             <div style="padding:15px;color:var(--muted);font-size:11px;">No active alerts. All check-ins healthy.</div>
           </div>
@@ -322,10 +358,18 @@
       <h2 id="modal-title">Schedule a Check-in Call</h2>
       <p class="modal-intro">Set up an autonomous multi-agent voice reminder.</p>
       <form id="reminder-form">
-        <label>Contact Phone Number *
+        <label>Quick Receiver Select
+          <select id="reminder-receiver-select" onchange="applyReceiverPreset(this.value)">
+            <option value="">Choose a receiver or enter custom below</option>
+            <option value="+918147581686|Sritej Deverkonda|Take your blood pressure tablets and drink warm water">Sritej Deverkonda (+918147581686)</option>
+            <option value="+919532981656|Satyam Tiwari|Take your multivitamin tablets and drink water">Satyam Tiwari (+919532981656)</option>
+            <option value="+917425849166|Pushkar Singh|Post-lunch walking check-in and hydration">Pushkar Singh (+917425849166)</option>
+          </select>
+        </label>
+        <label>Receiver Phone Number *
           <input id="reminder-phone" type="tel" value="+918147581686" placeholder="+918147581686" required>
         </label>
-        <label>Contact Name
+        <label>Receiver Name
           <input id="reminder-name" value="sritej" placeholder="sritej">
         </label>
         <label>What should we remind them about? *
@@ -341,6 +385,16 @@
               <option value="en" selected>English (en)</option>
               <option value="hi">Hindi (hi)</option>
               <option value="kn">Kannada (kn)</option>
+            </select>
+          </label>
+          <label>TTS Voice
+            <select id="reminder-voice">
+              <option value="Polly.Aditi" selected>Aditi (Indian Female - Warm)</option>
+              <option value="Polly.Kajal-Neural">Kajal (Indian Neural Female)</option>
+              <option value="Polly.Raveena">Raveena (Indian Classic Female)</option>
+              <option value="Polly.Matthew">Matthew (US English Male)</option>
+              <option value="Polly.Amy">Amy (British Female)</option>
+              <option value="alice">Alice (Twilio Classic)</option>
             </select>
           </label>
         </div>
@@ -361,20 +415,32 @@
       <button class="modal-close" id="close-contact-modal" aria-label="Close">×</button>
       <div class="modal-symbol">♧</div>
       <div class="panel-kicker">CARE CIRCLE DIRECTORY</div>
-      <h2 id="contact-modal-title">Add Contact Profile</h2>
-      <p class="modal-intro">Register contact details and identity verification keyword.</p>
+      <h2 id="contact-modal-title">Add Receiver Profile</h2>
+      <p class="modal-intro">Register contact details, preferred voice, and identity keyword.</p>
       <form id="new-contact-form">
         <label>Full Name *
-          <input id="new-contact-name" value="Sritej Deverkonda" placeholder="Sritej Deverkonda" required>
+          <input id="new-contact-name" value="Satyam Tiwari" placeholder="Satyam Tiwari" required>
         </label>
         <label>Phone Number (International format) *
-          <input id="new-contact-phone" value="+918147581686" placeholder="+918147581686" required>
+          <input id="new-contact-phone" value="+919532981656" placeholder="+919532981656" required>
         </label>
         <label>Identity Secret Keyword (Birth Year) *
           <input id="new-contact-secret" value="2007" placeholder="2007" required>
         </label>
+        <div class="form-row">
+          <label>Preferred TTS Voice
+            <select id="new-contact-voice">
+              <option value="Polly.Aditi" selected>Aditi (Indian Female - Warm)</option>
+              <option value="Polly.Kajal-Neural">Kajal (Indian Neural Female)</option>
+              <option value="Polly.Raveena">Raveena (Indian Classic Female)</option>
+              <option value="Polly.Matthew">Matthew (US English Male)</option>
+              <option value="Polly.Amy">Amy (British Female)</option>
+              <option value="alice">Alice (Twilio Classic)</option>
+            </select>
+          </label>
+        </div>
         <label>Daily Reminders
-          <textarea id="new-contact-reminders" rows="2" placeholder="Take BP tablets after breakfast and drink water">Take BP tablets after breakfast and drink water</textarea>
+          <textarea id="new-contact-reminders" rows="2" placeholder="Take multivitamin tablets and drink water">Take multivitamin tablets and drink water</textarea>
         </label>
         <label>Caregiver Notes
           <textarea id="new-contact-notes" rows="2" placeholder="Prefers morning check-in">Prefers morning check-in</textarea>

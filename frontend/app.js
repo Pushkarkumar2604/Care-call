@@ -90,6 +90,43 @@ let allCalls = [];
 let allContacts = [];
 let allAlerts = [];
 
+// Receiver Quick Selection
+function selectContact(phone, name, msg, voice) {
+  const pInput = document.getElementById("instantPhone");
+  const nInput = document.getElementById("instantName");
+  const mInput = document.getElementById("instantMessage");
+  const vInput = document.getElementById("instantVoice");
+
+  if (pInput) pInput.value = phone;
+  if (nInput) nInput.value = name;
+  if (mInput) mInput.value = msg || "Daily check-in call";
+  if (vInput && voice) vInput.value = voice;
+
+  const panel = document.getElementById("instant-call-panel");
+  if (panel) panel.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  showToast(`Selected receiver ${name} (${phone}). Ready to call!`);
+}
+
+function quickDial(phone, name, msg, voice) {
+  selectContact(phone, name, msg, voice);
+}
+
+function applyReceiverPreset(val) {
+  if (!val) return;
+  const parts = val.split("|");
+  if (parts.length >= 3) {
+    const [phone, name, msg] = parts;
+    const pInput = document.getElementById("reminder-phone");
+    const nInput = document.getElementById("reminder-name");
+    const mInput = document.getElementById("reminder-title");
+    if (pInput) pInput.value = phone;
+    if (nInput) nInput.value = name;
+    if (mInput) mInput.value = msg;
+    showToast(`Loaded ${name} preset.`);
+  }
+}
+
 // ============================================================
 // DATA LOADERS
 // ============================================================
@@ -103,7 +140,7 @@ async function loadHealth() {
     const pill = document.getElementById("system-health");
     if (pill) {
       const mode = h.dry_run ? "DRY RUN" : "LIVE";
-      pill.innerHTML = `● <b>${mode}</b> · DB ${esc(h.db)} · LLM ${esc(h.llm)}`;
+      pill.innerHTML = `● <b>${mode}</b> · Voice: ${esc(h.default_voice || "Polly.Aditi")} · LLM ${esc(h.llm)}`;
     }
 
     const todayLabel = document.getElementById("today-label");
@@ -172,7 +209,7 @@ function renderReminders(calls) {
         </div>
         <div class="reminder-copy">
           <strong>${esc(c.spoken_message || c.message)}</strong>
-          <small>To: <b>${esc(contactName)}</b> (${esc(c.phone)})</small>
+          <small>To: <b>${esc(contactName)}</b> (${esc(c.phone)}) · Voice: <code>${esc(c.voice || "Polly.Aditi")}</code></small>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span class="badge-status ${statusClass}">${esc(c.status)}</span>
@@ -224,6 +261,7 @@ function renderCallLogs(calls) {
         <td><code style="font-size:9px;color:#059669;">${esc(c.twilio_sid || "—")}</code></td>
         <td style="max-width:320px;white-space:normal;">
           <div style="font-weight:600;font-size:10px;color:#29283c;margin-bottom:4px;">“${esc(c.spoken_message || c.message)}”</div>
+          <div style="font-size:9px;color:var(--muted);margin-bottom:4px;">TTS Voice: <code>${esc(c.voice || "Polly.Aditi")}</code></div>
           ${c.summary ? `<div style="font-size:9px;color:#43805c;margin-bottom:4px;"><b>Summary:</b> ${esc(c.summary)}</div>` : ""}
           ${eventCount > 0 ? `
             <details>
@@ -291,9 +329,9 @@ async function loadContacts() {
           </span>
         </td>
         <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${esc(c.reminders)}">${esc(c.reminders || "Daily check-in")}</td>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);">${esc(c.notes || "None")}</td>
+        <td><span class="badge-status status-scheduled" style="font-size:8px;">${esc(c.voice || "Polly.Aditi")}</span></td>
         <td>
-          <button class="call-sm-btn" onclick="quickDial('${esc(c.phone)}', '${esc(c.name)}', '${esc(c.reminders || 'Daily check-in call')}')">
+          <button class="call-sm-btn" onclick="quickDial('${esc(c.phone)}', '${esc(c.name)}', '${esc(c.reminders || 'Daily check-in call')}', '${esc(c.voice || 'Polly.Aditi')}')">
             📞 Call Now
           </button>
         </td>
@@ -424,21 +462,6 @@ async function callNow(callId) {
   }
 }
 
-// Quick dial from contact table
-function quickDial(phone, name, msg) {
-  const pInput = document.getElementById("instantPhone");
-  const nInput = document.getElementById("instantName");
-  const mInput = document.getElementById("instantMessage");
-  if (pInput) pInput.value = phone;
-  if (nInput) nInput.value = name;
-  if (mInput) mInput.value = msg || "Daily check-in call";
-
-  const panel = document.getElementById("instant-call-panel");
-  if (panel) panel.scrollIntoView({ behavior: "smooth", block: "center" });
-
-  showToast(`Pre-filled for ${name} (${phone}). Click 'Call Phone Now'.`);
-}
-
 // Acknowledge alert
 async function ackAlert(alertId) {
   try {
@@ -476,24 +499,25 @@ document.getElementById("instantCallForm")?.addEventListener("submit", async e =
   btn.textContent = "Connecting Twilio...";
 
   banner.className = "call-banner ringing";
-  banner.innerHTML = "<b>Connecting to Twilio...</b> Dialing phone number now...";
+  banner.innerHTML = "<b>Connecting to Twilio...</b> Dialing receiver number now...";
 
   const phone = document.getElementById("instantPhone").value.trim();
   const name = document.getElementById("instantName").value.trim();
   const message = document.getElementById("instantMessage").value.trim();
+  const voice = document.getElementById("instantVoice")?.value || "Polly.Aditi";
 
   try {
     const res = await fetch(API + "/api/calls/immediate", {
       method: "POST",
       headers: H,
-      body: JSON.stringify({ phone, name, message })
+      body: JSON.stringify({ phone, name, message, voice })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Call placement failed");
 
     banner.className = "call-banner ringing";
-    banner.innerHTML = `<b>📞 Phone is Ringing!</b> Call SID: <code>${data.twilio_sid}</code>. Answer your phone! Alice will ask for Birth Year keyword (<b>2007</b>).`;
-    showToast("Outbound call connected!");
+    banner.innerHTML = `<b>📞 Phone is Ringing!</b> Call SID: <code>${data.twilio_sid}</code> · TTS Voice: <b>${esc(voice)}</b>. Answer phone! Agent will verify Birth Year (<b>2007</b>).`;
+    showToast(`Outbound call placed with ${voice}!`);
     loadAll();
   } catch (err) {
     banner.className = "call-banner error";
@@ -501,7 +525,7 @@ document.getElementById("instantCallForm")?.addEventListener("submit", async e =
     showToast("Error: " + err.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<span>📞</span> Call Phone Now`;
+    btn.innerHTML = `<span>📞</span> Call Receiver Now`;
   }
 });
 
@@ -519,6 +543,7 @@ document.getElementById("reminder-form")?.addEventListener("submit", async e => 
   const timeVal = document.getElementById("reminder-time").value;
   const language = document.getElementById("reminder-lang").value;
   const note = document.getElementById("reminder-note").value.trim();
+  const voice = document.getElementById("reminder-voice")?.value || "Polly.Aditi";
 
   const scheduledAt = new Date(`${dateVal}T${timeVal}:00`).toISOString();
 
@@ -532,7 +557,8 @@ document.getElementById("reminder-form")?.addEventListener("submit", async e => 
         sender_name: name,
         scheduled_at: scheduledAt,
         language,
-        note
+        note,
+        voice
       })
     });
     const data = await res.json();
@@ -557,6 +583,7 @@ document.getElementById("new-contact-form")?.addEventListener("submit", async e 
   const secret = document.getElementById("new-contact-secret").value.trim() || "2007";
   const reminders = document.getElementById("new-contact-reminders").value.trim();
   const notes = document.getElementById("new-contact-notes").value.trim();
+  const voice = document.getElementById("new-contact-voice")?.value || "Polly.Aditi";
 
   try {
     const res = await fetch(API + "/api/contacts", {
@@ -568,11 +595,12 @@ document.getElementById("new-contact-form")?.addEventListener("submit", async e 
         secret_check: secret,
         reminders,
         notes,
-        caregiver_contact: phone
+        caregiver_contact: phone,
+        voice
       })
     });
     if (!res.ok) throw new Error("Could not save contact");
-    showToast(`Contact ${name} saved with keyword ${secret}!`);
+    showToast(`Receiver ${name} registered with keyword ${secret}!`);
     closeModal();
     loadContacts();
   } catch (err) {
