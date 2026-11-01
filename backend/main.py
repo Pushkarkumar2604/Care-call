@@ -140,10 +140,10 @@ def index():
     # Prefer frontend/index.html, fallback to static/index.html
     f_path = FRONTEND_DIR / "index.html"
     if f_path.is_file():
-        return FileResponse(f_path)
+        return FileResponse(f_path, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     s_path = STATIC_DIR / "index.html"
     if s_path.is_file():
-        return FileResponse(s_path)
+        return FileResponse(s_path, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     raise HTTPException(status_code=404, detail="Dashboard index.html not found.")
 
 
@@ -151,10 +151,10 @@ def index():
 def get_style():
     f_path = FRONTEND_DIR / "style.css"
     if f_path.is_file():
-        return FileResponse(f_path, media_type="text/css")
+        return FileResponse(f_path, media_type="text/css", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     s_path = STATIC_DIR / "style.css"
     if s_path.is_file():
-        return FileResponse(s_path, media_type="text/css")
+        return FileResponse(s_path, media_type="text/css", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     raise HTTPException(status_code=404, detail="style.css not found.")
 
 
@@ -162,10 +162,10 @@ def get_style():
 def get_app():
     f_path = FRONTEND_DIR / "app.js"
     if f_path.is_file():
-        return FileResponse(f_path, media_type="application/javascript")
+        return FileResponse(f_path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     s_path = STATIC_DIR / "app.js"
     if s_path.is_file():
-        return FileResponse(s_path, media_type="application/javascript")
+        return FileResponse(s_path, media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     raise HTTPException(status_code=404, detail="app.js not found.")
 
 
@@ -350,6 +350,7 @@ def immediate_call(body: ImmediateCallIn):
         "sender_name": body.name.strip() or "sritej",
         "language": "en",
         "spoken_message": body.message.strip() or "Daily check-in call",
+        "voice": body.voice or config.DEFAULT_VOICE,
         "priority": "normal",
         "priority_reason": "Immediate check-in",
         "max_attempts": 2,
@@ -375,6 +376,56 @@ def immediate_call(body: ImmediateCallIn):
     except Exception as e:
         db.add_event(call_id, "SYSTEM", f"Failed to place call: {str(e)[:150]}")
         raise HTTPException(500, f"Twilio error: {str(e)}")
+
+
+@app.post("/api/calls/immediate-all")
+def immediate_call_all(body: ImmediateCallIn):
+    """Dial all 3 receivers simultaneously (Broadcast check-in)."""
+    import telephony
+    results = []
+    default_rec_msgs = {
+        "+918147581686": "Take your blood pressure tablets and drink warm water",
+        "+919532981656": "Take your multivitamin tablets and drink water",
+        "+917425849166": "Post-lunch walking check-in and hydration",
+    }
+    for r in CAREGIVER_RECEIVERS:
+        phone = normalize_phone(r["phone"])
+        call_id = str(uuid.uuid4())
+        msg = body.message.strip() if body.message.strip() and body.message.strip() != "Daily check-in call" else default_rec_msgs.get(phone, "Daily check-in call")
+        row = {
+            "id": call_id,
+            "phone": phone,
+            "message": msg,
+            "note": body.note.strip(),
+            "sender_name": r["name"],
+            "language": "en",
+            "spoken_message": msg,
+            "voice": body.voice or config.DEFAULT_VOICE,
+            "priority": "normal",
+            "priority_reason": "Immediate broadcast check-in",
+            "max_attempts": 2,
+            "retry_gap_seconds": 20,
+            "attempts": 1,
+            "failed_attempts": 0,
+            "status": "calling",
+            "scheduled_at": now_iso(),
+            "next_attempt_at": now_iso(),
+            "summary": "",
+            "twilio_sid": "",
+            "created_at": now_iso(),
+            "updated_at": now_iso(),
+        }
+        db.insert_call(row)
+        db.add_event(call_id, "SCHEDULER", f"Broadcast call placed to {r['name']} ({phone}).")
+        try:
+            sid = telephony.place_call(row, 1)
+            db.update_call(call_id, twilio_sid=sid)
+            db.add_event(call_id, "TWILIO", f"Phone ringing (Call SID: {sid}).")
+            results.append({"name": r["name"], "phone": phone, "call_id": call_id, "twilio_sid": sid, "status": "ringing"})
+        except Exception as e:
+            db.add_event(call_id, "SYSTEM", f"Broadcast failed for {phone}: {str(e)[:150]}")
+            results.append({"name": r["name"], "phone": phone, "error": str(e), "status": "failed"})
+    return {"ok": True, "results": results}
 
 
 @app.delete("/api/calls")

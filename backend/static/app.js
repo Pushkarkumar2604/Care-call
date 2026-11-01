@@ -91,7 +91,7 @@ let allContacts = [];
 let allAlerts = [];
 
 // Receiver Quick Selection
-function selectContact(phone, name, msg, voice) {
+function selectContact(phone, name, msg, voice, btnEl) {
   const pInput = document.getElementById("instantPhone");
   const nInput = document.getElementById("instantName");
   const mInput = document.getElementById("instantMessage");
@@ -102,14 +102,67 @@ function selectContact(phone, name, msg, voice) {
   if (mInput) mInput.value = msg || "Daily check-in call";
   if (vInput && voice) vInput.value = voice;
 
-  const panel = document.getElementById("instant-call-panel");
-  if (panel) panel.scrollIntoView({ behavior: "smooth", block: "center" });
+  // Visual highlight for the clicked quick receiver button
+  document.querySelectorAll(".receiver-quick-btn").forEach(b => {
+    b.style.borderColor = "#eeeef3";
+    b.style.background = "#ffffff";
+    b.style.color = "#77768a";
+    b.style.fontWeight = "600";
+  });
+  if (btnEl) {
+    btnEl.style.borderColor = "#7056d6";
+    btnEl.style.background = "#f4f1fd";
+    btnEl.style.color = "#7056d6";
+    btnEl.style.fontWeight = "800";
+  }
 
   showToast(`Selected receiver ${name} (${phone}). Ready to call!`);
 }
 
 function quickDial(phone, name, msg, voice) {
   selectContact(phone, name, msg, voice);
+  const panel = document.getElementById("instant-call-panel");
+  if (panel) panel.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+async function callAllReceivers() {
+  const banner = document.getElementById("callStatusBanner");
+  const btn = document.getElementById("btn-broadcast-all");
+  const voice = document.getElementById("instantVoice")?.value || "Polly.Aditi";
+
+  if (!confirm("Start broadcast calls to all 3 receivers (Sritej, Satyam, Pushkar)?")) return;
+
+  btn.disabled = true;
+  btn.textContent = "Broadcasting...";
+
+  banner.className = "call-banner ringing";
+  banner.innerHTML = "<b>Connecting to Twilio...</b> Dialing Sritej, Satyam, and Pushkar simultaneously...";
+
+  try {
+    const res = await fetch(API + "/api/calls/immediate-all", {
+      method: "POST",
+      headers: H,
+      body: JSON.stringify({ voice, message: "Daily check-in verification call" })
+    });
+    const text = await res.text();
+    let data = {};
+    try { data = JSON.parse(text); } catch { data = { detail: text }; }
+    if (!res.ok) throw new Error(data.detail || `Server error (HTTP ${res.status})`);
+
+    const sids = (data.results || []).map(r => `<li><b>${esc(r.name)} (${esc(r.phone)}):</b> ${r.twilio_sid ? `Ringing (SID: <code>${r.twilio_sid}</code>)` : `<span style='color:red'>${esc(r.error || 'Failed')}</span>`}</li>`).join("");
+
+    banner.className = "call-banner ringing";
+    banner.innerHTML = `<b>📞 Broadcast Initiated!</b> Ringing all 3 receivers:<ul style="margin:6px 0 0 16px;padding:0;">${sids}</ul><small style="display:block;margin-top:6px;">Verification keyword is Birth Year: <b>2007</b>.</small>`;
+    showToast("Broadcast calls sent to all receivers!");
+    loadAll();
+  } catch (err) {
+    banner.className = "call-banner error";
+    banner.innerHTML = `<b>Broadcast error:</b> ${esc(err.message)}`;
+    showToast("Error: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = "📢 Broadcast Call to All 3";
+  }
 }
 
 function applyReceiverPreset(val) {
@@ -512,8 +565,14 @@ document.getElementById("instantCallForm")?.addEventListener("submit", async e =
       headers: H,
       body: JSON.stringify({ phone, name, message, voice })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Call placement failed");
+    const text = await res.text();
+    let data = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { detail: text || `HTTP ${res.status}` };
+    }
+    if (!res.ok) throw new Error(data.detail || `Server error (HTTP ${res.status})`);
 
     banner.className = "call-banner ringing";
     banner.innerHTML = `<b>📞 Phone is Ringing!</b> Call SID: <code>${data.twilio_sid}</code> · TTS Voice: <b>${esc(voice)}</b>. Answer phone! Agent will verify Birth Year (<b>2007</b>).`;
@@ -561,8 +620,14 @@ document.getElementById("reminder-form")?.addEventListener("submit", async e => 
         voice
       })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Failed to schedule reminder");
+    const text = await res.text();
+    let data = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { detail: text || `HTTP ${res.status}` };
+    }
+    if (!res.ok) throw new Error(data.detail || `Server error (HTTP ${res.status})`);
 
     showToast(`Reminder scheduled! Priority: ${data.priority.toUpperCase()}`);
     closeModal();

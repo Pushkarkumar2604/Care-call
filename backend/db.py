@@ -36,9 +36,23 @@ class SupabaseDB:
         self.sb = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
         self.sb.table("calls").select("id").limit(1).execute()
 
+    CALL_COLUMNS = {
+        'id', 'phone', 'message', 'note', 'sender_name', 'language',
+        'spoken_message', 'priority', 'priority_reason', 'max_attempts',
+        'retry_gap_seconds', 'attempts', 'failed_attempts', 'status',
+        'scheduled_at', 'next_attempt_at', 'summary', 'twilio_sid',
+        'created_at', 'updated_at'
+    }
+
+    CONTACT_COLUMNS = {
+        'id', 'owner_id', 'name', 'phone', 'secret_check', 'language',
+        'reminders', 'notes', 'caregiver_contact', 'created_at'
+    }
+
     # Calls & Events (existing)
     def insert_call(self, row: dict) -> dict:
-        return self.sb.table("calls").insert(row).execute().data[0]
+        cleaned = {k: v for k, v in row.items() if k in self.CALL_COLUMNS}
+        return self.sb.table("calls").insert(cleaned).execute().data[0]
 
     def get_call(self, call_id: str):
         data = self.sb.table("calls").select("*").eq("id", call_id).limit(1).execute().data
@@ -46,11 +60,13 @@ class SupabaseDB:
 
     def update_call(self, call_id: str, **fields):
         fields["updated_at"] = now_iso()
-        self.sb.table("calls").update(fields).eq("id", call_id).execute()
+        cleaned = {k: v for k, v in fields.items() if k in self.CALL_COLUMNS}
+        self.sb.table("calls").update(cleaned).eq("id", call_id).execute()
 
     def update_call_if_status(self, call_id: str, old_status: str, **fields):
         fields["updated_at"] = now_iso()
-        res = self.sb.table("calls").update(fields).eq("id", call_id).eq("status", old_status).execute()
+        cleaned = {k: v for k, v in fields.items() if k in self.CALL_COLUMNS}
+        res = self.sb.table("calls").update(cleaned).eq("id", call_id).eq("status", old_status).execute()
         return len(res.data) > 0 if res.data else False
 
     def list_calls(self):

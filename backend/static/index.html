@@ -181,9 +181,10 @@
           <!-- Quick Receiver Selector -->
           <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <span style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;">Select Receiver:</span>
-            <button type="button" class="filter-button" onclick="selectContact('+918147581686', 'Sritej Deverkonda', 'Take your blood pressure tablets and drink warm water')">👤 Sritej (+918147581686)</button>
-            <button type="button" class="filter-button" onclick="selectContact('+919532981656', 'Satyam Tiwari', 'Take your multivitamin tablets and drink water')">👤 Satyam (+919532981656)</button>
-            <button type="button" class="filter-button" onclick="selectContact('+917425849166', 'Pushkar Singh', 'Post-lunch walking check-in and hydration')">👤 Pushkar (+917425849166)</button>
+            <button type="button" class="filter-button receiver-quick-btn active-receiver-btn" style="border-color:#7056d6;background:#f4f1fd;color:#7056d6;font-weight:800;" onclick="selectContact('+918147581686', 'Sritej Deverkonda', 'Take your blood pressure tablets and drink warm water', null, this)">👤 Sritej (+918147581686)</button>
+            <button type="button" class="filter-button receiver-quick-btn" onclick="selectContact('+919532981656', 'Satyam Tiwari', 'Take your multivitamin tablets and drink water', null, this)">👤 Satyam (+919532981656)</button>
+            <button type="button" class="filter-button receiver-quick-btn" onclick="selectContact('+917425849166', 'Pushkar Singh', 'Post-lunch walking check-in and hydration', null, this)">👤 Pushkar (+917425849166)</button>
+            <button type="button" class="filter-button" id="btn-broadcast-all" onclick="callAllReceivers()" style="background:#fffbeb;border:1px solid #f59e0b;color:#b45309;font-weight:700;margin-left:auto;">📢 Broadcast Call to All 3</button>
           </div>
 
           <form id="instantCallForm">
