@@ -31,8 +31,8 @@ CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "3.5"))
 
 DB_BACKEND = os.getenv("DB_BACKEND", "supabase").strip().lower()
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = (os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY", "")).strip()
 SQLITE_PATH = str(Path(__file__).resolve().parent / "carecall.db")
 
 ENABLED_LANGUAGES = [x.strip() for x in os.getenv("ENABLED_LANGUAGES", "en,hi,kn").split(",") if x.strip()]
@@ -58,6 +58,11 @@ CORS_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if 
 
 def get_public_url() -> str:
     """Public https address Twilio uses to reach us."""
+    # 0. Render Cloud Hosting (Automatic on Render)
+    render_url = os.getenv("RENDER_EXTERNAL_URL", "").strip().rstrip("/")
+    if render_url.startswith("https://"):
+        return render_url
+
     # 1. Check if tunnel.txt has an active tunnel
     tunnel_file = Path(__file__).resolve().parent / "tunnel.txt"
     if tunnel_file.exists():
