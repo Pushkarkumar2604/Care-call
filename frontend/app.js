@@ -130,13 +130,13 @@ async function callAllReceivers() {
   const btn = document.getElementById("btn-broadcast-all");
   const voice = document.getElementById("instantVoice")?.value || "Polly.Aditi";
 
-  if (!confirm("Start broadcast calls to all 3 receivers (Sritej, Satyam, Pushkar)?")) return;
+  if (!confirm("Start broadcast calls to all receivers (Sritej, Satyam, Pushkar, Shudhanshu)?")) return;
 
   btn.disabled = true;
   btn.textContent = "Broadcasting...";
 
   banner.className = "call-banner ringing";
-  banner.innerHTML = "<b>Connecting to Twilio...</b> Dialing Sritej, Satyam, and Pushkar simultaneously...";
+  banner.innerHTML = "<b>Connecting to Twilio...</b> Dialing Sritej, Satyam, Pushkar, and Shudhanshu simultaneously...";
 
   try {
     const res = await fetch(API + "/api/calls/immediate-all", {

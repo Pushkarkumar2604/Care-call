@@ -92,6 +92,7 @@ CAREGIVER_RECEIVERS = [
     {"name": "Sritej Deverkonda", "phone": "+918147581686", "role": "Lead Coordinator"},
     {"name": "Satyam Tiwari", "phone": "+919532981656", "role": "Caregiver Receiver"},
     {"name": "Pushkar Singh", "phone": "+917425849166", "role": "Caregiver Receiver"},
+    {"name": "Shudhanshu Yadav", "phone": "+918173097248", "role": "Receiver"},
 ]
 
 
@@ -387,6 +388,7 @@ def immediate_call_all(body: ImmediateCallIn):
         "+918147581686": "Take your blood pressure tablets and drink warm water",
         "+919532981656": "Take your multivitamin tablets and drink water",
         "+917425849166": "Post-lunch walking check-in and hydration",
+        "+918173097248": "Take your evening medication and drink warm water",
     }
     for r in CAREGIVER_RECEIVERS:
         phone = normalize_phone(r["phone"])
@@ -495,8 +497,8 @@ async def twilio_voice(request: Request, contact_id: str | None = None, call_id:
     lang = contact.get("language", "en-IN")
     tts_voice = request.query_params.get("voice") or (c.get("voice") if c else None) or (contact.get("voice") if contact else None) or config.DEFAULT_VOICE
 
-    # STRICT INITIAL PROMPT: First ask for birth year, then wait and listen
-    ask_identity = "Hello! This is CareCall. May I verify your identity? Please state your year of birth."
+    # INITIAL PROMPT: Greets and asks if this is the recipient and verifies identity
+    ask_identity = f"Hello! Is this {name}? This is CareCall. May I verify your identity? Please state your year of birth."
     db.upsert_session(call_sid, contact["id"], state="verify", history=[{"role": "assistant", "text": ask_identity}])
     if call_id:
         db.add_event(call_id, "TWILIO", f"Call answered. Asking for birth year keyword (2007) with voice {tts_voice}.")

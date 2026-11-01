@@ -23,9 +23,7 @@ def is_emergency(text: str) -> bool:
 
 
 def is_contact_verified_by_keyword(speech: str, contact_name: str, secret_keyword: str = "2007") -> bool:
-    """Verifies contact identity using the assigned birth year keyword (2007) or name.
-    Supports speech, digits (DTMF), and phonetic spellings like 'two thousand seven'.
-    """
+    """Verifies contact identity using the assigned birth year keyword (2007), name, or affirmative response."""
     t = speech.lower().strip()
     digits = "".join(re.findall(r"\d+", t))
     
@@ -36,9 +34,14 @@ def is_contact_verified_by_keyword(speech: str, contact_name: str, secret_keywor
     if "two thousand seven" in t or "two thousand and seven" in t:
         return True
         
-    # 2. Also accept if they explicitly state contact name
-    first_name = contact_name.lower().split()[0] if contact_name else "sritej"
-    if first_name in t:
+    # 2. Accept if they state their first or last name (e.g. 'shudhanshu', 'yadav', 'sritej', 'satyam', 'pushkar')
+    if contact_name:
+        parts = [p.lower() for p in contact_name.split() if len(p) > 2]
+        if any(p in t for p in parts):
+            return True
+
+    # 3. Accept natural affirmative responses when asked "Is this [Name]?"
+    if any(p in t for p in ["yes", "yeah", "speaking", "this is", "myself", "it is me", "ha", "haan", "sahi", "bol raha hoon", "bol raha hu"]):
         return True
         
     return False
